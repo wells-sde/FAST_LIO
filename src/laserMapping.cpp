@@ -136,6 +136,7 @@ nav_msgs::Path path;
 nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
+std::vector<geometry_msgs::PoseStamped> traj_all;
 
 shared_ptr<Preprocess> p_pre(new Preprocess());
 shared_ptr<ImuProcess> p_imu(new ImuProcess());
@@ -593,6 +594,14 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
     odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);// ros::Time().fromSec(lidar_end_time);
     set_posestamp(odomAftMapped.pose);
     pubOdomAftMapped.publish(odomAftMapped);
+
+    //store pose
+    geometry_msgs::PoseStamped pose_stamp;
+    pose_stamp.header.stamp = odomAftMapped.header.stamp;
+    pose_stamp.header.frame_id = "camera_init";
+    pose_stamp.pose = odomAftMapped.pose.pose;
+    traj_all.push_back(pose_stamp);
+
     auto P = kf.get_P();
     for (int i = 0; i < 6; i ++)
     {
@@ -753,6 +762,48 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     solve_time += omp_get_wtime() - solve_start_;
 }
 
+void loadPathFromFile(const std::string& file_path, nav_msgs::Path& path_msg) {
+    std::ifstream file(file_path);
+    if (!file.is_open()) {
+        ROS_WARN("Failed to open file: %s", file_path.c_str());
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream ss(line);
+        std::string token;
+        std::vector<double> values;
+
+        // Parse the line into double values
+        while (std::getline(ss, token, ',')) {
+            values.push_back(std::stod(token));
+        }
+
+        if (values.size() != 8) {
+            ROS_WARN("Invalid line format in file: %s", line.c_str());
+            continue;
+        }
+
+        // Create a PoseStamped message
+        geometry_msgs::PoseStamped pose;
+        pose.header.stamp = ros::Time(values[0]);
+        pose.header.frame_id = "camera_init";
+        pose.pose.position.x = values[1];
+        pose.pose.position.y = values[2];
+        pose.pose.position.z = values[3];
+        pose.pose.orientation.x = values[4];
+        pose.pose.orientation.y = values[5];
+        pose.pose.orientation.z = values[6];
+        pose.pose.orientation.w = values[7];
+
+        // Add the pose to the path
+        path_msg.poses.push_back(pose);
+    }
+
+    file.close();
+}
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "laserMapping");
@@ -855,19 +906,46 @@ int main(int argc, char** argv)
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
             ("/Laser_map", 100000);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
-            ("/Odometry", 100000);
+            ("/lidar_pose", 100000);  // /Odometry
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
-            ("/path", 100000);
+            ("/lidar_path", 100000);  // /path
+
+    //read full_path.txt file and publish
+    // Publisher
+    ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 10);
+
+    // Load path from file
+    nav_msgs::Path fixed_path_msg;
+    fixed_path_msg.header.frame_id = "camera_init";
+    std::string file_path = string(ROOT_DIR) + "PCD/full_path.txt";
+    loadPathFromFile(file_path, fixed_path_msg);
+
+    if (fixed_path_msg.poses.empty()) {
+        ROS_WARN("No valid poses loaded from file: %s", file_path.c_str());
+    } else {
+        fixed_path_msg.header.stamp = ros::Time::now();
+        full_path_pub.publish(fixed_path_msg);
+    }
+    
 //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
-    ros::Rate rate(5000);
+    ros::Rate rate(100);
     bool status = ros::ok();
+    // int frame_count = 0;
     while (status)
     {
         if (flg_exit) break;
         ros::spinOnce();
         if(sync_packages(Measures)) 
         {
+            if (flg_first_scan) {
+                //publish fixed path
+                if (!fixed_path_msg.poses.empty()) {
+                    fixed_path_msg.header.stamp = ros::Time::now();
+                    full_path_pub.publish(fixed_path_msg);
+                }
+            }
+
             if (flg_first_scan)
             {
                 first_lidar_time = Measures.lidar_beg_time;
@@ -983,6 +1061,16 @@ int main(int argc, char** argv)
             // publish_effect_world(pubLaserCloudEffect);
             // publish_map(pubLaserCloudMap);
 
+            // ++frame_count;
+            // if (frame_count % 20 == 0)
+            // {
+            //     //publish fixed path
+            //     if (!fixed_path_msg.poses.empty()) {
+            //         fixed_path_msg.header.stamp = ros::Time::now();
+            //         full_path_pub.publish(fixed_path_msg);
+            //     }
+            // }
+
             /*** Debug variables ***/
             if (runtime_pos_log)
             {
@@ -1028,6 +1116,29 @@ int main(int argc, char** argv)
         pcl::PCDWriter pcd_writer;
         cout << "current scan saved to /PCD/" << file_name<<endl;
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
+    }
+
+    //save path
+    if (path_en && traj_all.size()>0)
+    {
+        string path_file = string("full_path.txt");
+        string traj_dir(string(string(ROOT_DIR) + "PCD/") + path_file);
+        ofstream path_out(traj_dir.c_str());
+        for (int i = 0; i < traj_all.size(); i++)
+        {
+            path_out << fixed << setprecision(6)
+                     << traj_all[i].header.stamp.toSec() << ","
+                     << traj_all[i].pose.position.x << ","
+                     << traj_all[i].pose.position.y << ","
+                     << traj_all[i].pose.position.z << ","
+                     << traj_all[i].pose.orientation.x << ","
+                     << traj_all[i].pose.orientation.y << ","
+                     << traj_all[i].pose.orientation.z << ","
+                     << traj_all[i].pose.orientation.w << endl;
+        }
+        path_out.close();
+        cout << "path saved to /PCD/" << path_file << endl;
+        cout << "total path size: " << traj_all.size() << endl;
     }
 
     fout_out.close();
