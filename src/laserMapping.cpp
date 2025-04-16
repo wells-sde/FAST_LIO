@@ -137,6 +137,7 @@ nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 std::vector<geometry_msgs::PoseStamped> traj_all;
+bool path_save = false;
 
 shared_ptr<Preprocess> p_pre(new Preprocess());
 shared_ptr<ImuProcess> p_imu(new ImuProcess());
@@ -596,11 +597,15 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
     pubOdomAftMapped.publish(odomAftMapped);
 
     //store pose
-    geometry_msgs::PoseStamped pose_stamp;
-    pose_stamp.header.stamp = odomAftMapped.header.stamp;
-    pose_stamp.header.frame_id = "camera_init";
-    pose_stamp.pose = odomAftMapped.pose.pose;
-    traj_all.push_back(pose_stamp);
+    if (path_save)
+    {
+        geometry_msgs::PoseStamped pose_stamp;
+        pose_stamp.header.stamp = odomAftMapped.header.stamp;
+        pose_stamp.header.frame_id = "camera_init";
+        pose_stamp.pose = odomAftMapped.pose.pose;
+        traj_all.push_back(pose_stamp);
+    
+    }
 
     auto P = kf.get_P();
     for (int i = 0; i < 6; i ++)
@@ -842,6 +847,7 @@ int main(int argc, char** argv)
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
+    nh.param<bool>("path_save", path_save, false);
 
     p_pre->lidar_type = lidar_type;
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
@@ -912,40 +918,36 @@ int main(int argc, char** argv)
 
     //read full_path.txt file and publish
     // Publisher
-    ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 10);
+    ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 10, true);
 
-    // Load path from file
-    nav_msgs::Path fixed_path_msg;
-    fixed_path_msg.header.frame_id = "camera_init";
-    std::string file_path = string(ROOT_DIR) + "PCD/full_path.txt";
-    loadPathFromFile(file_path, fixed_path_msg);
-
-    if (fixed_path_msg.poses.empty()) {
-        ROS_WARN("No valid poses loaded from file: %s", file_path.c_str());
-    } else {
-        fixed_path_msg.header.stamp = ros::Time::now();
-        full_path_pub.publish(fixed_path_msg);
+    if (!path_save)
+    {
+        // Load path from file
+        nav_msgs::Path fixed_path_msg;
+        fixed_path_msg.header.frame_id = "camera_init";
+        std::string file_path = string(ROOT_DIR) + "PCD/full_path.txt";
+        loadPathFromFile(file_path, fixed_path_msg);
+    
+        if (fixed_path_msg.poses.empty()) {
+            ROS_WARN("No valid poses loaded from file: %s", file_path.c_str());
+        } else {
+            ROS_INFO("Loaded %zu poses from file: %s", fixed_path_msg.poses.size(), file_path.c_str());
+            // Publish the path
+            fixed_path_msg.header.stamp = ros::Time::now();
+            full_path_pub.publish(fixed_path_msg);
+        }
     }
     
 //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
     ros::Rate rate(100);
     bool status = ros::ok();
-    // int frame_count = 0;
     while (status)
     {
         if (flg_exit) break;
         ros::spinOnce();
         if(sync_packages(Measures)) 
         {
-            if (flg_first_scan) {
-                //publish fixed path
-                if (!fixed_path_msg.poses.empty()) {
-                    fixed_path_msg.header.stamp = ros::Time::now();
-                    full_path_pub.publish(fixed_path_msg);
-                }
-            }
-
             if (flg_first_scan)
             {
                 first_lidar_time = Measures.lidar_beg_time;
@@ -1061,16 +1063,6 @@ int main(int argc, char** argv)
             // publish_effect_world(pubLaserCloudEffect);
             // publish_map(pubLaserCloudMap);
 
-            // ++frame_count;
-            // if (frame_count % 20 == 0)
-            // {
-            //     //publish fixed path
-            //     if (!fixed_path_msg.poses.empty()) {
-            //         fixed_path_msg.header.stamp = ros::Time::now();
-            //         full_path_pub.publish(fixed_path_msg);
-            //     }
-            // }
-
             /*** Debug variables ***/
             if (runtime_pos_log)
             {
@@ -1119,7 +1111,7 @@ int main(int argc, char** argv)
     }
 
     //save path
-    if (path_en && traj_all.size()>0)
+    if (path_save && traj_all.size()>0)
     {
         string path_file = string("full_path.txt");
         string traj_dir(string(string(ROOT_DIR) + "PCD/") + path_file);
