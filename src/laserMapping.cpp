@@ -781,7 +781,7 @@ void loadPathFromFile(const std::string& file_path, nav_msgs::Path& path_msg) {
         std::vector<double> values;
 
         // Parse the line into double values
-        while (std::getline(ss, token, ',')) {
+        while (std::getline(ss, token, ' ')) {
             values.push_back(std::stod(token));
         }
 
@@ -1118,14 +1118,15 @@ int main(int argc, char** argv)
         ofstream path_out(traj_dir.c_str());
         for (int i = 0; i < traj_all.size(); i++)
         {
+            //TUM format
             path_out << fixed << setprecision(6)
-                     << traj_all[i].header.stamp.toSec() << ","
-                     << traj_all[i].pose.position.x << ","
-                     << traj_all[i].pose.position.y << ","
-                     << traj_all[i].pose.position.z << ","
-                     << traj_all[i].pose.orientation.x << ","
-                     << traj_all[i].pose.orientation.y << ","
-                     << traj_all[i].pose.orientation.z << ","
+                     << traj_all[i].header.stamp.toSec() << " "
+                     << traj_all[i].pose.position.x << " "
+                     << traj_all[i].pose.position.y << " "
+                     << traj_all[i].pose.position.z << " "
+                     << traj_all[i].pose.orientation.x << " "
+                     << traj_all[i].pose.orientation.y << " "
+                     << traj_all[i].pose.orientation.z << " "
                      << traj_all[i].pose.orientation.w << endl;
         }
         path_out.close();
