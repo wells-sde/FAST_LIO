@@ -137,7 +137,9 @@ nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 std::vector<geometry_msgs::PoseStamped> traj_all;
-bool path_save = false;
+bool path_save = true;
+bool load_path = false;
+std::string path_file = "PCD/full_path.txt";
 
 shared_ptr<Preprocess> p_pre(new Preprocess());
 shared_ptr<ImuProcess> p_imu(new ImuProcess());
@@ -604,7 +606,6 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
         pose_stamp.header.frame_id = "camera_init";
         pose_stamp.pose = odomAftMapped.pose.pose;
         traj_all.push_back(pose_stamp);
-    
     }
 
     auto P = kf.get_P();
@@ -847,7 +848,9 @@ int main(int argc, char** argv)
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
-    nh.param<bool>("path_save", path_save, false);
+    nh.param<bool>("path_save", path_save, true);
+    nh.param<bool>("load_previous_path", load_path, false);
+    nh.param<string>("path_file", path_file, "/PCD/full_path.txt");
 
     p_pre->lidar_type = lidar_type;
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
@@ -920,12 +923,12 @@ int main(int argc, char** argv)
     // Publisher
     ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 10, true);
 
-    if (!path_save)
+    if (load_path)
     {
         // Load path from file
         nav_msgs::Path fixed_path_msg;
         fixed_path_msg.header.frame_id = "camera_init";
-        std::string file_path = string(ROOT_DIR) + "PCD/full_path.txt";
+        std::string file_path = string(ROOT_DIR) + path_file;
         loadPathFromFile(file_path, fixed_path_msg);
     
         if (fixed_path_msg.poses.empty()) {
@@ -1113,8 +1116,7 @@ int main(int argc, char** argv)
     //save path
     if (path_save && traj_all.size()>0)
     {
-        string path_file = string("full_path.txt");
-        string traj_dir(string(string(ROOT_DIR) + "PCD/") + path_file);
+        string traj_dir(string(ROOT_DIR)+ path_file);
         ofstream path_out(traj_dir.c_str());
         for (int i = 0; i < traj_all.size(); i++)
         {
@@ -1130,7 +1132,7 @@ int main(int argc, char** argv)
                      << traj_all[i].pose.orientation.w << endl;
         }
         path_out.close();
-        cout << "path saved to /PCD/" << path_file << endl;
+        cout << "path saved to " << path_file << endl;
         cout << "total path size: " << traj_all.size() << endl;
     }
 

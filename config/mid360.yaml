@@ -35,3 +35,5 @@ pcd_save:
                                  # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
 
 path_save: false
+load_previous_path: true # load previous path
+path_file: "PCD/full_path.txt" # path file to save/load    
