@@ -914,7 +914,7 @@ int main(int argc, char** argv)
     ros::Publisher pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>
             ("/cloud_effected", 10);
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-            ("/Laser_map", 5);
+            ("/Laser_map", 10);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
             ("/lidar_pose", 10);  // /Odometry
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
@@ -1009,7 +1009,8 @@ int main(int argc, char** argv)
             int featsFromMapNum = ikdtree.validnum();
             kdtree_size_st = ikdtree.size();
             
-            // cout<<"[ mapping ]: In num: "<<feats_undistort->points.size()<<" downsamp "<<feats_down_size<<" Map num: "<<featsFromMapNum<<"effect num:"<<effct_feat_num<<endl;
+            cout <<"[ mapping ]: In num: "<<feats_undistort->points.size()<<" downsamp "<<feats_down_size<<" Map num: "
+                 << featsFromMapNum<<" effect num:"<<effct_feat_num<<endl;
 
             /*** ICP and iterated Kalman filter update ***/
             if (feats_down_size < 5)
@@ -1025,7 +1026,7 @@ int main(int argc, char** argv)
             fout_pre<<setw(20)<<Measures.lidar_beg_time - first_lidar_time<<" "<<euler_cur.transpose()<<" "<< state_point.pos.transpose()<<" "<<ext_euler.transpose() << " "<<state_point.offset_T_L_I.transpose()<< " " << state_point.vel.transpose() \
             <<" "<<state_point.bg.transpose()<<" "<<state_point.ba.transpose()<<" "<<state_point.grav<< endl;
 
-            if(scan_pub_en && frame_num % 100 == 0) // If you need to see map point, change to "if(1)"
+            if(scan_pub_en && frame_num % 10 == 0) // If you need to see map point, change to "if(1)"
             {
                 auto t_showmap0 = omp_get_wtime();
                 PointVector ().swap(ikdtree.PCL_Storage);
@@ -1070,7 +1071,7 @@ int main(int argc, char** argv)
             if (scan_pub_en || pcd_save_en)      publish_frame_world(pubLaserCloudFull);
             if (scan_pub_en && scan_body_pub_en) publish_frame_body(pubLaserCloudFull_body);
             // publish_effect_world(pubLaserCloudEffect);
-            if (scan_pub_en && frame_num % 100 == 0) {
+            if (scan_pub_en && frame_num % 10 == 0) {
                 auto t_showmap0 = omp_get_wtime();
                 publish_map(pubLaserCloudMap);
                 auto map_pub_time = omp_get_wtime() - t_showmap0;
