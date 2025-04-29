@@ -331,7 +331,8 @@ void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
     p_pre->process(msg, ptr);
     lidar_buffer.push_back(ptr);
     time_buffer.push_back(last_timestamp_lidar);
-    
+
+    //std::cout << "point num after preprocess:" << ptr->size() << std::endl;
     s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
     mtx_buffer.unlock();
     sig_buffer.notify_all();
@@ -903,21 +904,21 @@ int main(int argc, char** argv)
 
     /*** ROS subscribe initialization ***/
     ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? \
-        nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : \
-        nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
-    ros::Subscriber sub_imu = nh.subscribe(imu_topic, 200000, imu_cbk);
+        nh.subscribe(lid_topic, 100, livox_pcl_cbk) : \
+        nh.subscribe(lid_topic, 100, standard_pcl_cbk);
+    ros::Subscriber sub_imu = nh.subscribe(imu_topic, 2000, imu_cbk);
     ros::Publisher pubLaserCloudFull = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_registered", 100000);
+            ("/cloud_registered", 10);
     ros::Publisher pubLaserCloudFull_body = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_registered_body", 100000);
+            ("/cloud_registered_body", 10);
     ros::Publisher pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_effected", 100000);
+            ("/cloud_effected", 10);
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-            ("/Laser_map", 100000);
+            ("/Laser_map", 5);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
-            ("/lidar_pose", 100000);  // /Odometry
+            ("/lidar_pose", 10);  // /Odometry
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
-            ("/lidar_path", 100000);  // /path
+            ("/lidar_path", 10);  // /path
 
     //read full_path.txt file and publish
     // Publisher
@@ -988,6 +989,8 @@ int main(int argc, char** argv)
             downSizeFilterSurf.filter(*feats_down_body);
             t1 = omp_get_wtime();
             feats_down_size = feats_down_body->points.size();
+            // std::cout << "Downsampled size: " << feats_down_size << std::endl;
+
             /*** initialize the map kdtree ***/
             if(ikdtree.Root_Node == nullptr)
             {
@@ -1022,12 +1025,15 @@ int main(int argc, char** argv)
             fout_pre<<setw(20)<<Measures.lidar_beg_time - first_lidar_time<<" "<<euler_cur.transpose()<<" "<< state_point.pos.transpose()<<" "<<ext_euler.transpose() << " "<<state_point.offset_T_L_I.transpose()<< " " << state_point.vel.transpose() \
             <<" "<<state_point.bg.transpose()<<" "<<state_point.ba.transpose()<<" "<<state_point.grav<< endl;
 
-            if(0) // If you need to see map point, change to "if(1)"
+            if(scan_pub_en && frame_num % 100 == 0) // If you need to see map point, change to "if(1)"
             {
+                auto t_showmap0 = omp_get_wtime();
                 PointVector ().swap(ikdtree.PCL_Storage);
                 ikdtree.flatten(ikdtree.Root_Node, ikdtree.PCL_Storage, NOT_RECORD);
                 featsFromMap->clear();
                 featsFromMap->points = ikdtree.PCL_Storage;
+                auto map_to_points_time = omp_get_wtime() - t_showmap0;
+                std::cout << "Execution time of convert kdtree to PCL points: " << map_to_points_time << " s" << std::endl;
             }
 
             pointSearchInd_surf.resize(feats_down_size);
@@ -1064,12 +1070,18 @@ int main(int argc, char** argv)
             if (scan_pub_en || pcd_save_en)      publish_frame_world(pubLaserCloudFull);
             if (scan_pub_en && scan_body_pub_en) publish_frame_body(pubLaserCloudFull_body);
             // publish_effect_world(pubLaserCloudEffect);
-            // publish_map(pubLaserCloudMap);
+            if (scan_pub_en && frame_num % 100 == 0) {
+                auto t_showmap0 = omp_get_wtime();
+                publish_map(pubLaserCloudMap);
+                auto map_pub_time = omp_get_wtime() - t_showmap0;
+                std::cout << "Execution time of publish map points: " << map_pub_time << " s" << std::endl;
+            }
 
+            frame_num ++;
             /*** Debug variables ***/
             if (runtime_pos_log)
             {
-                frame_num ++;
+                // frame_num ++;
                 kdtree_size_end = ikdtree.size();
                 aver_time_consu = aver_time_consu * (frame_num - 1) / frame_num + (t5 - t0) / frame_num;
                 aver_time_icp = aver_time_icp * (frame_num - 1)/frame_num + (t_update_end - t_update_start) / frame_num;
