@@ -96,6 +96,11 @@ bool   lidar_pushed, flg_first_scan = true, flg_exit = false, flg_EKF_inited;
 bool   scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
 int lidar_type;
 
+bool path_save = true;
+bool load_path = false;
+std::string path_file = "PCD/full_path.txt";
+int map_pub_interval = 0;
+
 vector<vector<int>>  pointSearchInd_surf; 
 vector<BoxPointType> cub_needrm;
 vector<PointVector>  Nearest_Points; 
@@ -137,9 +142,6 @@ nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 std::vector<geometry_msgs::PoseStamped> traj_all;
-bool path_save = true;
-bool load_path = false;
-std::string path_file = "PCD/full_path.txt";
 
 shared_ptr<Preprocess> p_pre(new Preprocess());
 shared_ptr<ImuProcess> p_imu(new ImuProcess());
@@ -849,6 +851,7 @@ int main(int argc, char** argv)
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
+    nh.param<int>("map_pub_interval", map_pub_interval, 0);
     nh.param<bool>("path_save", path_save, true);
     nh.param<bool>("load_previous_path", load_path, false);
     nh.param<string>("path_file", path_file, "/PCD/full_path.txt");
@@ -914,7 +917,7 @@ int main(int argc, char** argv)
     ros::Publisher pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>
             ("/cloud_effected", 10);
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-            ("/Laser_map", 10);
+            ("/Laser_map", 3);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
             ("/lidar_pose", 10);  // /Odometry
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
@@ -1026,15 +1029,17 @@ int main(int argc, char** argv)
             fout_pre<<setw(20)<<Measures.lidar_beg_time - first_lidar_time<<" "<<euler_cur.transpose()<<" "<< state_point.pos.transpose()<<" "<<ext_euler.transpose() << " "<<state_point.offset_T_L_I.transpose()<< " " << state_point.vel.transpose() \
             <<" "<<state_point.bg.transpose()<<" "<<state_point.ba.transpose()<<" "<<state_point.grav<< endl;
 
-            if(scan_pub_en && frame_num % 10 == 0) // If you need to see map point, change to "if(1)"
+            if(scan_pub_en && map_pub_interval > 0 && frame_num % map_pub_interval == 0) // If you need to see map point, change to "if(1)"
             {
+                int map_size = ikdtree.validnum();
                 auto t_showmap0 = omp_get_wtime();
                 PointVector ().swap(ikdtree.PCL_Storage);
                 ikdtree.flatten(ikdtree.Root_Node, ikdtree.PCL_Storage, NOT_RECORD);
                 featsFromMap->clear();
                 featsFromMap->points = ikdtree.PCL_Storage;
                 auto map_to_points_time = omp_get_wtime() - t_showmap0;
-                std::cout << "Execution time of convert kdtree to PCL points: " << map_to_points_time << " s" << std::endl;
+                std::cout << "cost time of convert kdtree to PCL points: " << map_to_points_time << " s, map points num: " 
+                << map_size << std::endl;
             }
 
             pointSearchInd_surf.resize(feats_down_size);
@@ -1071,11 +1076,8 @@ int main(int argc, char** argv)
             if (scan_pub_en || pcd_save_en)      publish_frame_world(pubLaserCloudFull);
             if (scan_pub_en && scan_body_pub_en) publish_frame_body(pubLaserCloudFull_body);
             // publish_effect_world(pubLaserCloudEffect);
-            if (scan_pub_en && frame_num % 10 == 0) {
-                auto t_showmap0 = omp_get_wtime();
+            if (scan_pub_en && map_pub_interval > 0 && frame_num % map_pub_interval == 0) {
                 publish_map(pubLaserCloudMap);
-                auto map_pub_time = omp_get_wtime() - t_showmap0;
-                std::cout << "Execution time of publish map points: " << map_pub_time << " s" << std::endl;
             }
 
             frame_num ++;
