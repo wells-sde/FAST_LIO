@@ -851,7 +851,7 @@ int main(int argc, char** argv)
     nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
-    nh.param<int>("map_pub_interval", map_pub_interval, 0);
+    nh.param<int>("publish/map_pub_interval", map_pub_interval, 0);
     nh.param<bool>("path_save", path_save, true);
     nh.param<bool>("load_previous_path", load_path, false);
     nh.param<string>("path_file", path_file, "/PCD/full_path.txt");
@@ -1116,6 +1116,30 @@ int main(int argc, char** argv)
         rate.sleep();
     }
 
+    //save path
+    if (path_save && traj_all.size()>0)
+    {
+        string traj_dir(string(ROOT_DIR)+ path_file);
+        ofstream path_out(traj_dir.c_str());
+        for (int i = 0; i < traj_all.size(); i++)
+        {
+            //TUM format
+            path_out << fixed << setprecision(6)
+                        << traj_all[i].header.stamp.toSec() << " "
+                        << traj_all[i].pose.position.x << " "
+                        << traj_all[i].pose.position.y << " "
+                        << traj_all[i].pose.position.z << " "
+                        << traj_all[i].pose.orientation.x << " "
+                        << traj_all[i].pose.orientation.y << " "
+                        << traj_all[i].pose.orientation.z << " "
+                        << traj_all[i].pose.orientation.w << endl;
+        }
+        path_out.close();
+        cout << "path saved to " << path_file << endl;
+        cout << "total path size: " << traj_all.size() << endl;
+    }
+    
+
     /**************** save map ****************/
     /* 1. make sure you have enough memories
     /* 2. pcd save will largely influence the real-time performences **/
@@ -1126,29 +1150,6 @@ int main(int argc, char** argv)
         pcl::PCDWriter pcd_writer;
         cout << "current scan saved to /PCD/" << file_name<<endl;
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
-    }
-
-    //save path
-    if (path_save && traj_all.size()>0)
-    {
-        string traj_dir(string(ROOT_DIR)+ path_file);
-        ofstream path_out(traj_dir.c_str());
-        for (int i = 0; i < traj_all.size(); i++)
-        {
-            //TUM format
-            path_out << fixed << setprecision(6)
-                     << traj_all[i].header.stamp.toSec() << " "
-                     << traj_all[i].pose.position.x << " "
-                     << traj_all[i].pose.position.y << " "
-                     << traj_all[i].pose.position.z << " "
-                     << traj_all[i].pose.orientation.x << " "
-                     << traj_all[i].pose.orientation.y << " "
-                     << traj_all[i].pose.orientation.z << " "
-                     << traj_all[i].pose.orientation.w << endl;
-        }
-        path_out.close();
-        cout << "path saved to " << path_file << endl;
-        cout << "total path size: " << traj_all.size() << endl;
     }
 
     fout_out.close();
