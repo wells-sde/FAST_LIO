@@ -27,13 +27,13 @@ publish:
     path_en:  true
     scan_publish_en:  true       # false: close all the point cloud output
     dense_publish_en: false       # false: low down the points number in a global-frame point clouds scan.
-    scan_bodyframe_pub_en: false  # true: output the point cloud scans in IMU-body-frame
-    map_pub_interval: 20       # publish frequency(eyery k frames) of global point cloud map, 
+    scan_bodyframe_pub_en: true  # true: output the point cloud scans in IMU-body-frame
+    map_pub_interval: -1       # publish frequency(eyery k frames) of global point cloud map, 
                                  # 1: publish map every frame, <=0: do not publish map
 
 pcd_save:
     pcd_save_en: false
-    interval: -1                 # how many LiDAR frames saved in each pcd file; 
+    interval: 20                 # how many LiDAR frames saved in each pcd file; 
                                  # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
 
 path_save: true
