@@ -6,3 +6,13 @@ Log/*.pdf
 .vscode/c_cpp_properties.json
 .vscode/settings.json
 PCD/*.pcd
+*.pcd
+PCD/*.txt
+PCD/*.csv
+PCD/*.png
+PCD/*.pgm
+PCD/*.pdf
+PCD/*.log
+PCD/*.yaml
+*.ot
+*.bt
