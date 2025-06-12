@@ -1,0 +1,12 @@
+<launch>
+    <!-- 设置需要加载的 .ot 文件路径 -->
+    <arg name="map_file" default="/home/airs/sim_single_box.ot" />
+    <arg name="frame_id" default="map" />
+
+    <!-- 启动 octomap_server 节点 -->
+    <node pkg="octomap_server" type="octomap_server_node" name="octomap_server" output="screen">
+        <param name="map_file" value="$(arg map_file)" />
+        <param name="frame_id" value="$(arg frame_id)" />
+        <param name="latch" value="true" />
+    </node>
+</launch>
