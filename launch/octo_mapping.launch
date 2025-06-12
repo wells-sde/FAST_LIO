@@ -1,0 +1,30 @@
+<launch>
+  <node pkg="octomap_server" type="octomap_server_node" name="octomap_server" output="screen">
+    <param name="base_frame_id" value="camera_init" />
+    <!-- resolution in meters per pixel -->
+    <param name="resolution" value="0.1" />
+ 
+    <!-- name of the fixed frame, needs to be "/map" for SLAM -->
+    <param name="frame_id" type="string" value="camera_init" />
+ 
+    <!-- max range / depth resolution of the kinect in meter -->
+    <param name="sensor_model/max_range" value="40" />
+    <param name="latch" value="false" />
+    <param name="height_map" value="false" />
+ 
+    <!-- max/min height for occupancy map, should be in meters -->
+    <param name="pointcloud_max_z" value="2.0" />
+    <param name="pointcloud_min_z" value="-2.0" />
+    <param name="filter_ground" value="false" />
+    <!-- <param name="ground_filter_angle" value="3.14" /> -->
+ 
+    <!-- topic from where pointcloud2 messages are subscribed -->
+    <!-- <remap from="cloud_in" to="/Laser_map" /> -->
+    <!-- 使用单帧点云和tf增量式建图 -->
+    <remap from="cloud_in" to="/cloud_registered_body" />
+    <remap from="projected_map" to="/map" />    <!-- 输出栅格地图话题 -->
+
+ 
+  </node>
+ 
+</launch>
