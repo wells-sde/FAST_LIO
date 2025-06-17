@@ -81,7 +81,7 @@ double time_diff_lidar_to_imu = 0.0;
 mutex mtx_buffer;
 condition_variable sig_buffer;
 
-string root_dir = ROOT_DIR;
+// string root_dir = ROOT_DIR;
 string map_file_path, lid_topic, imu_topic;
 
 double res_mean_last = 0.05, total_residual = 0.0;
@@ -526,7 +526,7 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFull)
         if (pcl_wait_save->size() > 0 && pcd_save_interval > 0  && scan_wait_num >= pcd_save_interval)
         {
             pcd_index ++;
-            string all_points_dir(string(string(ROOT_DIR) + "PCD/scans_") + to_string(pcd_index) + string(".pcd"));
+            string all_points_dir(string(SAVE_DIR + "PCD/scans_") + to_string(pcd_index) + string(".pcd"));
             pcl::PCDWriter pcd_writer;
             cout << "current scan saved to /PCD/" << all_points_dir << endl;
             pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
@@ -855,6 +855,10 @@ int main(int argc, char** argv)
     nh.param<bool>("path_save", path_save, true);
     nh.param<bool>("load_previous_path", load_path, false);
     nh.param<string>("path_file", path_file, "/PCD/full_path.txt");
+    nh.param<string>("save_dir", SAVE_DIR, "");
+
+    SAVE_DIR += "/";
+    DEBUG_FILE_DIR = SAVE_DIR + "Log/";
 
     p_pre->lidar_type = lidar_type;
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
@@ -893,17 +897,17 @@ int main(int argc, char** argv)
 
     /*** debug record ***/
     FILE *fp;
-    string pos_log_dir = root_dir + "/Log/pos_log.txt";
+    string pos_log_dir = SAVE_DIR + "/Log/pos_log.txt";
     fp = fopen(pos_log_dir.c_str(),"w");
 
     ofstream fout_pre, fout_out, fout_dbg;
-    fout_pre.open(DEBUG_FILE_DIR("mat_pre.txt"),ios::out);
-    fout_out.open(DEBUG_FILE_DIR("mat_out.txt"),ios::out);
-    fout_dbg.open(DEBUG_FILE_DIR("dbg.txt"),ios::out);
+    fout_pre.open(DEBUG_FILE_DIR + "mat_pre.txt",ios::out);
+    fout_out.open(DEBUG_FILE_DIR + "mat_out.txt",ios::out);
+    fout_dbg.open(DEBUG_FILE_DIR + "dbg.txt",ios::out);
     if (fout_pre && fout_out)
-        cout << "~~~~"<<ROOT_DIR<<" file opened" << endl;
+        cout << "~~~~"<<DEBUG_FILE_DIR<<" file opened" << endl;
     else
-        cout << "~~~~"<<ROOT_DIR<<" doesn't exist" << endl;
+        cout << "~~~~"<<DEBUG_FILE_DIR<<" doesn't exist" << endl;
 
     /*** ROS subscribe initialization ***/
     ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? \
@@ -932,7 +936,7 @@ int main(int argc, char** argv)
         // Load path from file
         nav_msgs::Path fixed_path_msg;
         fixed_path_msg.header.frame_id = "camera_init";
-        std::string file_path = string(ROOT_DIR) + path_file;
+        std::string file_path = SAVE_DIR + path_file;
         loadPathFromFile(file_path, fixed_path_msg);
     
         if (fixed_path_msg.poses.empty()) {
@@ -1119,7 +1123,7 @@ int main(int argc, char** argv)
     //save path
     if (path_save && traj_all.size()>0)
     {
-        string traj_dir(string(ROOT_DIR)+ path_file);
+        string traj_dir(SAVE_DIR + path_file);
         ofstream path_out(traj_dir.c_str());
         for (int i = 0; i < traj_all.size(); i++)
         {
@@ -1146,7 +1150,7 @@ int main(int argc, char** argv)
     if (pcl_wait_save->size() > 0 && pcd_save_en)
     {
         string file_name = string("scans.pcd");
-        string all_points_dir(string(string(ROOT_DIR) + "PCD/") + file_name);
+        string all_points_dir(string(SAVE_DIR + "PCD/") + file_name);
         pcl::PCDWriter pcd_writer;
         cout << "current scan saved to /PCD/" << file_name<<endl;
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
@@ -1159,7 +1163,7 @@ int main(int argc, char** argv)
     {
         vector<double> t, s_vec, s_vec2, s_vec3, s_vec4, s_vec5, s_vec6, s_vec7;    
         FILE *fp2;
-        string log_dir = root_dir + "/Log/fast_lio_time_log.csv";
+        string log_dir = SAVE_DIR + "/Log/fast_lio_time_log.csv";
         fp2 = fopen(log_dir.c_str(),"w");
         fprintf(fp2,"time_stamp, total time, scan point size, incremental time, search time, delete size, delete time, tree size st, tree size end, add point size, preprocess time\n");
         for (int i = 0;i<time_log_counter; i++){

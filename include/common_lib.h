@@ -31,7 +31,9 @@ using namespace Eigen;
 #define CONSTRAIN(v,min,max)     ((v>min)?((v<max)?v:max):min)
 #define ARRAY_FROM_EIGEN(mat)    mat.data(), mat.data() + mat.rows() * mat.cols()
 #define STD_VEC_FROM_EIGEN(mat)  vector<decltype(mat)::Scalar> (mat.data(), mat.data() + mat.rows() * mat.cols())
-#define DEBUG_FILE_DIR(name)     (string(string(ROOT_DIR) + "Log/"+ name))
+// #define DEBUG_FILE_DIR(name)     (string(string(ROOT_DIR) + "Log/"+ name))
+static string SAVE_DIR = "";
+static string DEBUG_FILE_DIR = SAVE_DIR + "Log/";
 
 typedef fast_lio::Pose6D Pose6D;
 typedef pcl::PointXYZINormal PointType;
