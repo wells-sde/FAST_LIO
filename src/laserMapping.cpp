@@ -818,6 +818,11 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "laserMapping");
     ros::NodeHandle nh;
 
+    // 设置控制台输出级别为DEBUG
+    if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info)) {
+        ros::console::notifyLoggerLevelsChanged();
+    }
+
     nh.param<bool>("publish/path_en",path_en, true);
     nh.param<bool>("publish/scan_publish_en",scan_pub_en, true);
     nh.param<bool>("publish/dense_publish_en",dense_pub_en, true);
@@ -1016,8 +1021,8 @@ int main(int argc, char** argv)
             int featsFromMapNum = ikdtree.validnum();
             kdtree_size_st = ikdtree.size();
             
-            cout <<"[ mapping ]: In num: "<<feats_undistort->points.size()<<" downsamp "<<feats_down_size<<" Map num: "
-                 << featsFromMapNum<<" effect num:"<<effct_feat_num<<endl;
+            ROS_DEBUG("[ mapping ]: In num: %lu downsamp %d Map num: %d effect num: %d", 
+                     feats_undistort->points.size(), feats_down_size, featsFromMapNum, effct_feat_num);
 
             /*** ICP and iterated Kalman filter update ***/
             if (feats_down_size < 5)
@@ -1042,8 +1047,7 @@ int main(int argc, char** argv)
                 featsFromMap->clear();
                 featsFromMap->points = ikdtree.PCL_Storage;
                 auto map_to_points_time = omp_get_wtime() - t_showmap0;
-                std::cout << "cost time of convert kdtree to PCL points: " << map_to_points_time << " s, map points num: " 
-                << map_size << std::endl;
+                ROS_DEBUG("cost time of convert kdtree to PCL points: %f s, map points num: %d", map_to_points_time, map_size);
             }
 
             pointSearchInd_surf.resize(feats_down_size);
