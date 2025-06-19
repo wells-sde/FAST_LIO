@@ -518,6 +518,16 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFull)
         {
             RGBpointBodyToWorld(&feats_undistort->points[i], \
                                 &laserCloudWorld->points[i]);
+
+            //transform to world coordinate for saving, in world frame
+            V3D p_global(laserCloudWorld->points[i].x, \
+                         laserCloudWorld->points[i].y, \
+                         laserCloudWorld->points[i].z);
+            V3D p_world(p_imu->R_world_imu * p_global + p_imu->T_world_imu);
+            PointType &po = laserCloudWorld->points[i];
+            po.x = p_world(0);
+            po.y = p_world(1);
+            po.z = p_world(2);
         }
         *pcl_wait_save += *laserCloudWorld;
 
@@ -797,7 +807,7 @@ void loadPathFromFile(const std::string& file_path, nav_msgs::Path& path_msg) {
         // Create a PoseStamped message
         geometry_msgs::PoseStamped pose;
         pose.header.stamp = ros::Time(values[0]);
-        pose.header.frame_id = "camera_init";
+        pose.header.frame_id = "world";  //camera_init frame
         pose.pose.position.x = values[1];
         pose.pose.position.y = values[2];
         pose.pose.position.z = values[3];
@@ -940,7 +950,7 @@ int main(int argc, char** argv)
     {
         // Load path from file
         nav_msgs::Path fixed_path_msg;
-        fixed_path_msg.header.frame_id = "camera_init";
+        fixed_path_msg.header.frame_id = "world";
         std::string file_path = SAVE_DIR + path_file;
         loadPathFromFile(file_path, fixed_path_msg);
     
@@ -1129,18 +1139,25 @@ int main(int argc, char** argv)
     {
         string traj_dir(SAVE_DIR + path_file);
         ofstream path_out(traj_dir.c_str());
-        for (int i = 0; i < traj_all.size(); i++)
+        for (auto& pose : traj_all)
         {
-            //TUM format
-            path_out << fixed << setprecision(6)
-                        << traj_all[i].header.stamp.toSec() << " "
-                        << traj_all[i].pose.position.x << " "
-                        << traj_all[i].pose.position.y << " "
-                        << traj_all[i].pose.position.z << " "
-                        << traj_all[i].pose.orientation.x << " "
-                        << traj_all[i].pose.orientation.y << " "
-                        << traj_all[i].pose.orientation.z << " "
-                        << traj_all[i].pose.orientation.w << endl;
+            //transform the pose to world frame for saving
+            V3D pos(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
+            V3D pos_world = p_imu->R_world_imu * pos + p_imu->T_world_imu;
+            geometry_msgs::Quaternion &geoQuat = pose.pose.orientation;
+            Eigen::Quaterniond geoQuatEigen(geoQuat.w, geoQuat.x, geoQuat.y, geoQuat.z);
+            Eigen::Quaterniond quat_world = Eigen::Quaterniond(p_imu->R_world_imu) * geoQuatEigen; // rotate    
+
+            // TUM format (timestamp, position, orientation) used for trajectory files in SLAM benchmarks
+            path_out << std::fixed << std::setprecision(6)
+                        << pose.header.stamp.toSec() << " "
+                        << pos_world[0] << " "
+                        << pos_world[1] << " "
+                        << pos_world[2] << " "
+                        << quat_world.x() << " "
+                        << quat_world.y() << " "
+                        << quat_world.z() << " "
+                        << quat_world.w() << std::endl;
         }
         path_out.close();
         cout << "path saved to " << path_file << endl;
