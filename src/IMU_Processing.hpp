@@ -24,6 +24,7 @@
 #include <geometry_msgs/Vector3.h>
 #include "use-ikfom.hpp"
 #include "preprocess.h"
+#include <tf2_ros/static_transform_broadcaster.h>
 
 /// *************Preconfiguration
 
@@ -61,6 +62,8 @@ class ImuProcess
   V3D cov_bias_acc;
   double first_lidar_time;
   int lidar_type;
+  M3D R_world_imu;
+  V3D T_world_imu;
 
  private:
   bool IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N);
@@ -100,6 +103,8 @@ ImuProcess::ImuProcess()
   angvel_last     = Zero3d;
   Lidar_T_wrt_IMU = Zero3d;
   Lidar_R_wrt_IMU = Eye3d;
+  R_world_imu =  Eye3d;
+  T_world_imu = Zero3d;
   last_imu_.reset(new sensor_msgs::Imu());
 }
 
@@ -206,7 +211,8 @@ bool ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
   init_state.grav = S2(- mean_acc / mean_acc.norm() * G_m_s2);
 
   //估计IMU初始方向
-  init_state.rot = GetQFromAcc(mean_acc).toRotationMatrix();
+  //init_state.rot = GetQFromAcc(mean_acc).toRotationMatrix();
+  R_world_imu = GetQFromAcc(mean_acc).toRotationMatrix();
   //state_inout.rot = Eye3d; // Exp(mean_acc.cross(V3D(0, 0, -1 / scale_gravity)));
   init_state.bg  = mean_gyr;
   init_state.offset_T_L_I = Lidar_T_wrt_IMU;
@@ -387,7 +393,22 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
       cov_acc = cov_acc_scale;
       cov_gyr = cov_gyr_scale;
 
-      Eigen::Quaterniond qwi(imu_state.rot);
+      Eigen::Quaterniond qwi(R_world_imu);
+      // 使用R_world_imu发布静态tf
+      static tf2_ros::StaticTransformBroadcaster static_br;
+      geometry_msgs::TransformStamped static_transform;
+      static_transform.header.stamp = ros::Time::now();
+      static_transform.header.frame_id = "world";
+      static_transform.child_frame_id = "camera_init";
+      static_transform.transform.translation.x = T_world_imu.x();
+      static_transform.transform.translation.y = T_world_imu.y();
+      static_transform.transform.translation.z = T_world_imu.z();
+      static_transform.transform.rotation.w = qwi.w();
+      static_transform.transform.rotation.x = qwi.x();
+      static_transform.transform.rotation.y = qwi.y();
+      static_transform.transform.rotation.z = qwi.z();
+      static_br.sendTransform(static_transform);
+
       ROS_INFO("IMU Initial Done: q: %.4f %.4f %.4f %.4f; bg: %.4f %.4f %.4f", qwi.w(), qwi.x(), qwi.y(), qwi.z(), imu_state.bg[0], imu_state.bg[1], imu_state.bg[2]);
       // ROS_INFO("IMU Initial Done: Gravity: %.4f %.4f %.4f %.4f; state.bias_g: %.4f %.4f %.4f; acc covarience: %.8f %.8f %.8f; gry covarience: %.8f %.8f %.8f",\
       //          imu_state.grav[0], imu_state.grav[1], imu_state.grav[2], mean_acc.norm(), cov_bias_gyr[0], cov_bias_gyr[1], cov_bias_gyr[2], cov_acc[0], cov_acc[1], cov_acc[2], cov_gyr[0], cov_gyr[1], cov_gyr[2]);
