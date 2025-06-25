@@ -1,5 +1,6 @@
 <launch>
   <node pkg="octomap_server" type="octomap_server_node" name="octomap_server" output="screen">
+    <param name="map_file" value="" />  <!-- 设置空路径，避免使用缓存路径加载地图 -->
     <param name="base_frame_id" value="world" />
     <!-- resolution in meters per pixel -->
     <param name="resolution" value="0.1" />

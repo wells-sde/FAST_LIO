@@ -206,8 +206,7 @@ void pointBodyToWorld(const Matrix<T, 3, 1> &pi, Matrix<T, 3, 1> &po)
 void RGBpointBodyToWorld(PointType const * const pi, PointType * const po)
 {
     V3D p_body(pi->x, pi->y, pi->z);
-    V3D p_global(state_point.rot * (state_point.offset_R_L_I*p_body + state_point.offset_T_L_I) + state_point.pos);
-
+    V3D p_global(p_imu->R_world_imu *(state_point.rot * (state_point.offset_R_L_I*p_body + state_point.offset_T_L_I) + state_point.pos)+ p_imu->T_world_imu); 
     po->x = p_global(0);
     po->y = p_global(1);
     po->z = p_global(2);
@@ -493,14 +492,13 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFull)
 
         for (int i = 0; i < size; i++)
         {
-            RGBpointBodyToWorld(&laserCloudFullRes->points[i], \
-                                &laserCloudWorld->points[i]);
+            RGBpointBodyToWorld(&laserCloudFullRes->points[i], &laserCloudWorld->points[i]);
         }
 
         sensor_msgs::PointCloud2 laserCloudmsg;
         pcl::toROSMsg(*laserCloudWorld, laserCloudmsg);
         laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time);
-        laserCloudmsg.header.frame_id = "camera_init";
+        laserCloudmsg.header.frame_id = "world";
         pubLaserCloudFull.publish(laserCloudmsg);
         publish_count -= PUBFRAME_PERIOD;
     }
@@ -516,18 +514,7 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFull)
 
         for (int i = 0; i < size; i++)
         {
-            RGBpointBodyToWorld(&feats_undistort->points[i], \
-                                &laserCloudWorld->points[i]);
-
-            //transform to world coordinate for saving, in world frame
-            V3D p_global(laserCloudWorld->points[i].x, \
-                         laserCloudWorld->points[i].y, \
-                         laserCloudWorld->points[i].z);
-            V3D p_world(p_imu->R_world_imu * p_global + p_imu->T_world_imu);
-            PointType &po = laserCloudWorld->points[i];
-            po.x = p_world(0);
-            po.y = p_world(1);
-            po.z = p_world(2);
+            RGBpointBodyToWorld(&feats_undistort->points[i], &laserCloudWorld->points[i]);
         }
         *pcl_wait_save += *laserCloudWorld;
 
@@ -571,13 +558,12 @@ void publish_effect_world(const ros::Publisher & pubLaserCloudEffect)
                     new PointCloudXYZI(effct_feat_num, 1));
     for (int i = 0; i < effct_feat_num; i++)
     {
-        RGBpointBodyToWorld(&laserCloudOri->points[i], \
-                            &laserCloudWorld->points[i]);
+        RGBpointBodyToWorld(&laserCloudOri->points[i], &laserCloudWorld->points[i]);
     }
     sensor_msgs::PointCloud2 laserCloudFullRes3;
     pcl::toROSMsg(*laserCloudWorld, laserCloudFullRes3);
     laserCloudFullRes3.header.stamp = ros::Time().fromSec(lidar_end_time);
-    laserCloudFullRes3.header.frame_id = "camera_init";
+    laserCloudFullRes3.header.frame_id = "world";
     pubLaserCloudEffect.publish(laserCloudFullRes3);
 }
 
@@ -593,19 +579,27 @@ void publish_map(const ros::Publisher & pubLaserCloudMap)
 template<typename T>
 void set_posestamp(T & out)
 {
-    out.pose.position.x = state_point.pos(0);
-    out.pose.position.y = state_point.pos(1);
-    out.pose.position.z = state_point.pos(2);
-    out.pose.orientation.x = geoQuat.x;
-    out.pose.orientation.y = geoQuat.y;
-    out.pose.orientation.z = geoQuat.z;
-    out.pose.orientation.w = geoQuat.w;
-    
+    // transform the pose to world frame
+    V3D pos(state_point.pos(0), state_point.pos(1), state_point.pos(2));
+    V3D pos_world = p_imu->R_world_imu * pos + p_imu->T_world_imu;
+    Eigen::Quaterniond geoQuatEigen(geoQuat.w, geoQuat.x, geoQuat.y, geoQuat.z);
+    Eigen::Quaterniond quat_world = Eigen::Quaterniond(p_imu->R_world_imu) * geoQuatEigen; // rotate
+
+    // out.header.stamp = ros::Time().fromSec(lidar_end_time);
+    // out.header.frame_id = "world";
+    // out.child_frame_id = "body";
+    out.pose.position.x = pos_world(0);
+    out.pose.position.y = pos_world(1);
+    out.pose.position.z = pos_world(2);
+    out.pose.orientation.x = quat_world.x();
+    out.pose.orientation.y = quat_world.y();
+    out.pose.orientation.z = quat_world.z();
+    out.pose.orientation.w = quat_world.w();
 }
 
 void publish_odometry(const ros::Publisher & pubOdomAftMapped)
 {
-    odomAftMapped.header.frame_id = "camera_init";
+    odomAftMapped.header.frame_id = "world";
     odomAftMapped.child_frame_id = "body";
     odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);// ros::Time().fromSec(lidar_end_time);
     set_posestamp(odomAftMapped.pose);
@@ -616,11 +610,13 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
     {
         geometry_msgs::PoseStamped pose_stamp;
         pose_stamp.header.stamp = odomAftMapped.header.stamp;
-        pose_stamp.header.frame_id = "camera_init";
+        pose_stamp.header.frame_id = odomAftMapped.header.frame_id;
         pose_stamp.pose = odomAftMapped.pose.pose;
         traj_all.push_back(pose_stamp);
     }
 
+    //convert covariance matrix to world frame
+    //todo
     auto P = kf.get_P();
     for (int i = 0; i < 6; i ++)
     {
@@ -644,14 +640,14 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
     q.setY(odomAftMapped.pose.pose.orientation.y);
     q.setZ(odomAftMapped.pose.pose.orientation.z);
     transform.setRotation( q );
-    br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, "camera_init", "body" ) );
+    br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, "world", "body" ) );
 }
 
 void publish_path(const ros::Publisher pubPath)
 {
     set_posestamp(msg_body_pose);
     msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
-    msg_body_pose.header.frame_id = "camera_init";
+    msg_body_pose.header.frame_id = "world";
 
     /*** if path is too large, the rvis will crash ***/
     static int jjj = 0;
@@ -879,7 +875,7 @@ int main(int argc, char** argv)
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
     
     path.header.stamp    = ros::Time::now();
-    path.header.frame_id ="camera_init";
+    path.header.frame_id ="world"; // camera_init
 
     /*** variables definition ***/
     int effect_feat_num = 0, frame_num = 0;
@@ -1140,24 +1136,18 @@ int main(int argc, char** argv)
         string traj_dir(SAVE_DIR + path_file);
         ofstream path_out(traj_dir.c_str());
         for (auto& pose : traj_all)
-        {
-            //transform the pose to world frame for saving
-            V3D pos(pose.pose.position.x, pose.pose.position.y, pose.pose.position.z);
-            V3D pos_world = p_imu->R_world_imu * pos + p_imu->T_world_imu;
-            geometry_msgs::Quaternion &geoQuat = pose.pose.orientation;
-            Eigen::Quaterniond geoQuatEigen(geoQuat.w, geoQuat.x, geoQuat.y, geoQuat.z);
-            Eigen::Quaterniond quat_world = Eigen::Quaterniond(p_imu->R_world_imu) * geoQuatEigen; // rotate    
-
+        { 
             // TUM format (timestamp, position, orientation) used for trajectory files in SLAM benchmarks
             path_out << std::fixed << std::setprecision(6)
                         << pose.header.stamp.toSec() << " "
-                        << pos_world[0] << " "
-                        << pos_world[1] << " "
-                        << pos_world[2] << " "
-                        << quat_world.x() << " "
-                        << quat_world.y() << " "
-                        << quat_world.z() << " "
-                        << quat_world.w() << std::endl;
+                        << pose.pose.position.x << " "
+                        << pose.pose.position.y << " "
+                        << pose.pose.position.z << " "
+                        << pose.pose.orientation.x << " "
+                        << pose.pose.orientation.y << " "
+                        << pose.pose.orientation.z << " "
+                        << pose.pose.orientation.w << std::endl;
+            
         }
         path_out.close();
         cout << "path saved to " << path_file << endl;

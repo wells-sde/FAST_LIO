@@ -11,7 +11,6 @@ Panels:
         - /Odometry1/Odometry1/Shape1
         - /Odometry1/Odometry1/Covariance1/Position1
         - /Odometry1/Odometry1/Covariance1/Orientation1
-        - /PointCloud21
         - /MarkerArray1/Namespaces1
         - /TF1
       Splitter Ratio: 0.5766233801841736
@@ -259,7 +258,7 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz/Path
       Color: 25; 255; 0
-      Enabled: true
+      Enabled: false
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
@@ -278,7 +277,7 @@ Visualization Manager:
       Shaft Length: 0.10000000149011612
       Topic: /full_path
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/TF
       Enabled: true
       Filter (blacklist): ""
@@ -286,10 +285,6 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        base_footprint:
-          Value: true
-        body:
-          Value: true
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -297,21 +292,19 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        body:
-          base_footprint:
-            {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 0.699999988079071
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: Map
       Topic: /map
       Unreliable: false
       Use Timestamp: false
-      Value: false
+      Value: true
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /occupied_cells_vis_array
