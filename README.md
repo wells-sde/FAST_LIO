@@ -14,6 +14,7 @@ Clone the repository and catkin_make:
     source devel/setup.bash
 ```
 ##  3. Run
+请在机器人静止不动时启动li_slam，启动后slam会进行imu初始化，初始化完（几百ms）即可控制机器人运动
 3.1 运行lidar slam
 ```shell
     cd ~/my_slam
@@ -41,4 +42,11 @@ export ROS_MASTER_URI=http://192.168.123.164:11311
 export ROS_IP=192.168.0.44
 #文件可从rviz_cfg/目录下拷贝
 rviz -d lio_map.rviz
+```
+
+## 4. debug
+
+```shell
+#设置日志保存目录
+export ROS_LOG_DIR=/media/airs/E/PROJECTS/ws_livox/src/FAST_LIO/Log/
 ```
