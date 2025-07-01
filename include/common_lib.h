@@ -34,6 +34,7 @@ using namespace Eigen;
 // #define DEBUG_FILE_DIR(name)     (string(string(ROOT_DIR) + "Log/"+ name))
 static string SAVE_DIR = "";
 static string DEBUG_FILE_DIR = SAVE_DIR + "Log/";
+static bool RECORD_IMU_LOG = false; // Record IMU log to file
 
 typedef fast_lio::Pose6D Pose6D;
 typedef pcl::PointXYZINormal PointType;

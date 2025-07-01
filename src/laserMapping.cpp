@@ -427,7 +427,7 @@ bool sync_packages(MeasureGroup &meas)
     time_buffer.pop_front();
     lidar_pushed = false;
     if(lidar_buffer.size()>1) {
-        ROS_INFO("lidar buff size: %d", lidar_buffer.size());
+        ROS_WARN("lidar buff size: %d", lidar_buffer.size());
     }
     return true;
 }
@@ -873,6 +873,7 @@ int main(int argc, char** argv)
 
     SAVE_DIR += "/";
     DEBUG_FILE_DIR = SAVE_DIR + "Log/";
+    RECORD_IMU_LOG = runtime_pos_log;
 
     p_pre->lidar_type = lidar_type;
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
