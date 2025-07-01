@@ -426,6 +426,9 @@ bool sync_packages(MeasureGroup &meas)
     lidar_buffer.pop_front();
     time_buffer.pop_front();
     lidar_pushed = false;
+    if(lidar_buffer.size()>1) {
+        ROS_INFO("lidar buff size: %d", lidar_buffer.size());
+    }
     return true;
 }
 
