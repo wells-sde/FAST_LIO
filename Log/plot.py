@@ -22,33 +22,33 @@ axs[2,1].set_title('ba')
 axs[3,1].set_title('Gravity')
 for i in range(1,4):
     for j in range(8):
-        axs[j%4, j/4].plot(time, a_pre[:,i+j*3],'.-', label=lab_pre[i])
-        axs[j%4, j/4].plot(time, a_out[:,i+j*3],'.-', label=lab_out[i])
+        axs[j%4, j//4].plot(time, a_pre[:,i+j*3],'.-', label=lab_pre[i])
+        axs[j%4, j//4].plot(time, a_out[:,i+j*3],'.-', label=lab_out[i])
 for j in range(8):
     # axs[j].set_xlim(386,389)
-    axs[j%4, j/4].grid()
-    axs[j%4, j/4].legend()
+    axs[j%4, j//4].grid()
+    axs[j%4, j//4].legend()
 plt.grid()
 #######for ikfom#######
 
 
 #### Draw IMU data
-# fig, axs = plt.subplots(2)
-# imu=np.loadtxt('imu.txt')
-# time=imu[:,0]
-# axs[0].set_title('Gyroscope')
-# axs[1].set_title('Accelerameter')
-# lab_1 = ['gyr-x', 'gyr-y', 'gyr-z']
-# lab_2 = ['acc-x', 'acc-y', 'acc-z']
-# for i in range(3):
-#     # if i==1:
-#     axs[0].plot(time, imu[:,i+1],'.-', label=lab_1[i])
-#     axs[1].plot(time, imu[:,i+4],'.-', label=lab_2[i])
-# for i in range(2):
-#     # axs[i].set_xlim(386,389)
-#     axs[i].grid()
-#     axs[i].legend()
-# plt.grid()
+fig2, axs2 = plt.subplots(2)
+imu=np.loadtxt('imu.txt')
+time=imu[:,0]
+axs2[0].set_title('Gyroscope')
+axs2[1].set_title('Accelerameter')
+lab_1 = ['gyr-x', 'gyr-y', 'gyr-z']
+lab_2 = ['acc-x', 'acc-y', 'acc-z']
+for i in range(3):
+    # if i==1:
+    axs2[0].plot(time, imu[:,i+1],'.-', label=lab_1[i])
+    axs2[1].plot(time, imu[:,i+4],'.-', label=lab_2[i])
+for i in range(2):
+    # axs[i].set_xlim(386,389)
+    axs2[i].grid()
+    axs2[i].legend()
+plt.grid()
 
 # #### Draw time calculation
 # plt.figure(3)
