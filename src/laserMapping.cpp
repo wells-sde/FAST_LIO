@@ -824,9 +824,27 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "laserMapping");
     ros::NodeHandle nh;
 
-    // 设置控制台输出级别为DEBUG
-    if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info)) {
-        ros::console::notifyLoggerLevelsChanged();
+    // 从参数服务器获取日志级别
+    std::string log_level;
+    nh.param<std::string>("log_level", log_level, "info");
+    
+    // 设置日志级别
+    if (log_level == "debug") {
+        if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) ) {
+            ros::console::notifyLoggerLevelsChanged();
+        }
+    } else if (log_level == "info") {
+        if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info) ) {
+            ros::console::notifyLoggerLevelsChanged();
+        }
+    } else if (log_level == "warn") {
+        if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Warn) ) {
+            ros::console::notifyLoggerLevelsChanged();
+        }
+    } else if (log_level == "error") {
+        if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Error) ) {
+            ros::console::notifyLoggerLevelsChanged();
+        }
     }
 
     nh.param<bool>("publish/path_en",path_en, true);

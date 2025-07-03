@@ -54,6 +54,9 @@ find_package(catkin REQUIRED COMPONENTS
   livox_ros_driver2
   message_generation
   eigen_conversions
+  rosconsole
+  roslaunch
+  roslib
 )
 
 find_package(Eigen3 REQUIRED)

@@ -43,10 +43,3 @@ export ROS_IP=192.168.0.44
 #文件可从rviz_cfg/目录下拷贝
 rviz -d lio_map.rviz
 ```
-
-## 4. debug
-
-```shell
-#设置日志保存目录
-export ROS_LOG_DIR=/media/airs/E/PROJECTS/ws_livox/src/FAST_LIO/Log/
-```
