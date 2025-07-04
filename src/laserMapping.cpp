@@ -314,6 +314,20 @@ void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
         ROS_ERROR("lidar loop back, clear buffer");
         lidar_buffer.clear();
     }
+
+    // skip first frame, check lidar timestamp
+    if (last_timestamp_lidar > 1e-3 && msg->header.stamp.toSec() < last_timestamp_lidar + 0.009)
+    {
+        ROS_WARN("lidar FREQUENCY TOO HIGH! skip this fame! last time: %lf, current time: %lf", last_timestamp_lidar, msg->header.stamp.toSec());
+        mtx_buffer.unlock();
+        sig_buffer.notify_all();
+        return;
+    }
+
+    if (last_timestamp_lidar > 1e-3 && msg->header.stamp.toSec() > last_timestamp_lidar + 0.2)
+    {
+        ROS_WARN("lidar FREQUENCY TOO LOW! last time: %lf, current time: %lf", last_timestamp_lidar, msg->header.stamp.toSec());
+    }
     last_timestamp_lidar = msg->header.stamp.toSec();
     
     if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 10.0 && !imu_buffer.empty() && !lidar_buffer.empty() )
@@ -328,6 +342,17 @@ void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
         printf("Self sync IMU and LiDAR, time diff is %.10lf \n", timediff_lidar_wrt_imu);
     }
 
+    if (lidar_buffer.size() > 50)
+    {
+        ROS_WARN("Lidar buffer size too large: %d, drop old frame", lidar_buffer.size());
+        lidar_buffer.pop_front();
+    }
+    if (time_buffer.size() > 50)
+    {
+        ROS_WARN("Lidar buffer size too large: %d, drop old frame", time_buffer.size());
+        time_buffer.pop_front();
+    }
+    
     PointCloudXYZI::Ptr  ptr(new PointCloudXYZI());
     p_pre->process(msg, ptr);
     lidar_buffer.push_back(ptr);
@@ -378,6 +403,7 @@ bool sync_packages(MeasureGroup &meas)
     }
 
     /*** push a lidar scan ***/
+    //lidar end time? 为何不直接使用 lidar->points.back().curvature / double(1000) ?
     if(!lidar_pushed)
     {
         meas.lidar = lidar_buffer.front();
@@ -392,6 +418,8 @@ bool sync_packages(MeasureGroup &meas)
         else if (meas.lidar->points.back().curvature / double(1000) < 0.5 * lidar_mean_scantime)
         {
             lidar_end_time = meas.lidar_beg_time + lidar_mean_scantime;
+            ROS_WARN("lidar scan time too short! lidar frame point num: %d, scan time: %f, mean scan time: %f\n",
+                     meas.lidar->points.size(), meas.lidar->points.back().curvature / double(1000), lidar_mean_scantime);
         }
         else
         {
@@ -412,6 +440,16 @@ bool sync_packages(MeasureGroup &meas)
         return false;
     }
 
+    //drop lidar frame when lidar time < imu buff front time
+    if (lidar_end_time < imu_buffer.front()->header.stamp.toSec())
+    {
+        ROS_WARN("lidar end time: %lf < imu front time: %lf, drop lidar frame", lidar_end_time, imu_buffer.front()->header.stamp.toSec());
+        lidar_buffer.pop_front();
+        time_buffer.pop_front();
+        lidar_pushed = false;
+        return false;
+    }
+
     /*** push imu data, and pop from imu buffer ***/
     double imu_time = imu_buffer.front()->header.stamp.toSec();
     meas.imu.clear();
@@ -426,9 +464,33 @@ bool sync_packages(MeasureGroup &meas)
     lidar_buffer.pop_front();
     time_buffer.pop_front();
     lidar_pushed = false;
-    if(lidar_buffer.size()>1) {
+
+    //check if imu data is enough
+    if (meas.imu.size() < 1)
+    {
+        ROS_WARN("No IMU data for this lidar frame, lidar end time: %lf, imu front time: %lf",
+                 lidar_end_time, imu_time);
+    }    
+
+    if (lidar_buffer.size() > 5 || time_buffer.size() > 5)
+    {
         ROS_WARN("lidar buff size: %d", lidar_buffer.size());
+        std::cout << "lidar frame point size: ";
+        for (auto &&lidar : lidar_buffer)
+        {
+            std::cout << lidar->size() << " ";
+        }
+        std::cout << endl;
+
+        ROS_WARN("lidar time buff size: %d", time_buffer.size());
+        std::cout << "lidar frame timestamp diff: ";
+        for (size_t i = 1; i < time_buffer.size(); i++)
+        {
+            std::cout << time_buffer[i] - time_buffer[i - 1] << " ";
+        }
+        std::cout << endl;
     }
+
     return true;
 }
 
@@ -1140,7 +1202,7 @@ int main(int argc, char** argv)
                 s_plot9[time_log_counter] = aver_time_consu;
                 s_plot10[time_log_counter] = add_point_size;
                 time_log_counter ++;
-                printf("[ mapping ]: time: IMU + Map + Input Downsample: %0.6f ave match: %0.6f ave solve: %0.6f  ave ICP: %0.6f  map incre: %0.6f ave total: %0.6f icp: %0.6f construct H: %0.6f \n",t1-t0,aver_time_match,aver_time_solve,t3-t1,t5-t3,aver_time_consu,aver_time_icp, aver_time_const_H_time);
+                printf("[ mapping ]: time: IMU + Map + Input Downsample: %0.6f ave match: %0.6f ave solve: %0.6f  ICP: %0.6f  map incre: %0.6f ave total: %0.6f ave icp: %0.6f construct H: %0.6f \n",t1-t0,aver_time_match,aver_time_solve,t3-t1,t5-t3,aver_time_consu,aver_time_icp, aver_time_const_H_time);
                 ext_euler = SO3ToEuler(state_point.offset_R_L_I);
                 fout_out << setw(20) << Measures.lidar_beg_time - first_lidar_time << " " << euler_cur.transpose() << " " << state_point.pos.transpose()<< " " << ext_euler.transpose() << " "<<state_point.offset_T_L_I.transpose()<<" "<< state_point.vel.transpose() \
                 <<" "<<state_point.bg.transpose()<<" "<<state_point.ba.transpose()<<" "<<state_point.grav<<" "<<feats_undistort->points.size()<<endl;
