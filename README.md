@@ -1,5 +1,5 @@
 ## 1. Prerequisites
-ROS, PCL, Eigen, livox_ros_driver2, octomap_server
+ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server)
 
 ## 2. Build
 Clone the repository and catkin_make:
