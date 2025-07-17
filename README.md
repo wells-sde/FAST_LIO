@@ -10,6 +10,7 @@ Clone the repository and catkin_make:
     cd LI_SLAM
     git submodule update --init
     cd ../..
+    source livox_ros_driver2_workspace/devel/setup.bash
     catkin_make
     source devel/setup.bash
 ```
