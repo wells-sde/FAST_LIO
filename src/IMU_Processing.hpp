@@ -24,6 +24,7 @@
 #include <geometry_msgs/Vector3.h>
 #include "use-ikfom.hpp"
 #include "preprocess.h"
+#include <tf2_ros/static_transform_broadcaster.h>
 
 /// *************Preconfiguration
 
@@ -61,10 +62,14 @@ class ImuProcess
   V3D cov_bias_acc;
   double first_lidar_time;
   int lidar_type;
+  M3D R_world_imu;
+  V3D T_world_imu;
 
  private:
-  void IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N);
+  bool IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N);
   void UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_in_out);
+  Eigen::Quaterniond GetQFromAcc(const Vector3d& acc); 
+  bool CheckImuStatic(const V3D &mean_acc, const V3D &mean_gyr,const V3D &cov_acc, const V3D &cov_gyr);
 
   PointCloudXYZI::Ptr cur_pcl_un_;
   sensor_msgs::ImuConstPtr last_imu_;
@@ -98,6 +103,8 @@ ImuProcess::ImuProcess()
   angvel_last     = Zero3d;
   Lidar_T_wrt_IMU = Zero3d;
   Lidar_R_wrt_IMU = Eye3d;
+  R_world_imu =  Eye3d;
+  T_world_imu = Zero3d;
   last_imu_.reset(new sensor_msgs::Imu());
 }
 
@@ -156,7 +163,7 @@ void ImuProcess::set_acc_bias_cov(const V3D &b_a)
   cov_bias_acc = b_a;
 }
 
-void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N)
+bool ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N)
 {
   /** 1. initializing the gravity, gyro bias, acc and gyro covariance
    ** 2. normalize the acceleration measurenments to unit gravity **/
@@ -192,9 +199,20 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
 
     N ++;
   }
+
+  //检查IMU是否静止
+  bool is_imu_static = CheckImuStatic(mean_acc, mean_gyr, cov_acc, cov_gyr);
+  if (!is_imu_static) {
+    ROS_WARN("IMU is not static, skip IMU initialization!");
+    // return;
+  }
+
   state_ikfom init_state = kf_state.get_x();
   init_state.grav = S2(- mean_acc / mean_acc.norm() * G_m_s2);
-  
+
+  //估计IMU初始方向
+  //init_state.rot = GetQFromAcc(mean_acc).toRotationMatrix();
+  R_world_imu = GetQFromAcc(mean_acc).toRotationMatrix();
   //state_inout.rot = Eye3d; // Exp(mean_acc.cross(V3D(0, 0, -1 / scale_gravity)));
   init_state.bg  = mean_gyr;
   init_state.offset_T_L_I = Lidar_T_wrt_IMU;
@@ -211,6 +229,7 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
   kf_state.change_P(init_P);
   last_imu_ = meas.imu.back();
 
+  return is_imu_static;
 }
 
 void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_out)
@@ -260,9 +279,11 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikf
     acc_avr   <<0.5 * (head->linear_acceleration.x + tail->linear_acceleration.x),
                 0.5 * (head->linear_acceleration.y + tail->linear_acceleration.y),
                 0.5 * (head->linear_acceleration.z + tail->linear_acceleration.z);
+    if (RECORD_IMU_LOG)
+      fout_imu << setw(10) << head->header.stamp.toSec() - first_lidar_time << " " << angvel_avr.transpose() << " " << acc_avr.transpose() << endl;
 
-    // fout_imu << setw(10) << head->header.stamp.toSec() - first_lidar_time << " " << angvel_avr.transpose() << " " << acc_avr.transpose() << endl;
-
+    //？？尺度重置为重力幅值，造成运动加速度丢失
+    //没有减掉acc bias
     acc_avr     = acc_avr * G_m_s2 / mean_acc.norm(); // - state_inout.ba;
 
     if(head->header.stamp.toSec() < last_lidar_end_time_)
@@ -275,6 +296,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikf
       dt = tail->header.stamp.toSec() - head->header.stamp.toSec();
     }
     
+    //没有减去gyro、acc bias
     in.acc = acc_avr;
     in.gyro = angvel_avr;
     Q.block<3, 3>(0, 0).diagonal() = cov_gyr;
@@ -356,24 +378,41 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
   if (imu_need_init_)
   {
     /// The very first lidar frame
-    IMU_init(meas, kf_state, init_iter_num);
+    bool isusccess = IMU_init(meas, kf_state, init_iter_num);
 
     imu_need_init_ = true;
     
     last_imu_   = meas.imu.back();
 
     state_ikfom imu_state = kf_state.get_x();
-    if (init_iter_num > MAX_INI_COUNT)
+    if (init_iter_num > MAX_INI_COUNT && isusccess)
     {
       cov_acc *= pow(G_m_s2 / mean_acc.norm(), 2);
       imu_need_init_ = false;
 
       cov_acc = cov_acc_scale;
       cov_gyr = cov_gyr_scale;
-      ROS_INFO("IMU Initial Done");
+
+      Eigen::Quaterniond qwi(R_world_imu);
+      // 使用R_world_imu发布静态tf
+      static tf2_ros::StaticTransformBroadcaster static_br;
+      geometry_msgs::TransformStamped static_transform;
+      static_transform.header.stamp = ros::Time::now();
+      static_transform.header.frame_id = "world";
+      static_transform.child_frame_id = "camera_init";
+      static_transform.transform.translation.x = T_world_imu.x();
+      static_transform.transform.translation.y = T_world_imu.y();
+      static_transform.transform.translation.z = T_world_imu.z();
+      static_transform.transform.rotation.w = qwi.w();
+      static_transform.transform.rotation.x = qwi.x();
+      static_transform.transform.rotation.y = qwi.y();
+      static_transform.transform.rotation.z = qwi.z();
+      static_br.sendTransform(static_transform);
+
+      ROS_INFO("IMU Initial Done: q: %.4f %.4f %.4f %.4f; bg: %.4f %.4f %.4f", qwi.w(), qwi.x(), qwi.y(), qwi.z(), imu_state.bg[0], imu_state.bg[1], imu_state.bg[2]);
       // ROS_INFO("IMU Initial Done: Gravity: %.4f %.4f %.4f %.4f; state.bias_g: %.4f %.4f %.4f; acc covarience: %.8f %.8f %.8f; gry covarience: %.8f %.8f %.8f",\
       //          imu_state.grav[0], imu_state.grav[1], imu_state.grav[2], mean_acc.norm(), cov_bias_gyr[0], cov_bias_gyr[1], cov_bias_gyr[2], cov_acc[0], cov_acc[1], cov_acc[2], cov_gyr[0], cov_gyr[1], cov_gyr[2]);
-      fout_imu.open(DEBUG_FILE_DIR("imu.txt"),ios::out);
+      fout_imu.open(DEBUG_FILE_DIR +"imu.txt",ios::out);
     }
 
     return;
@@ -385,4 +424,40 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
   t3 = omp_get_wtime();
   
   // cout<<"[ IMU Process ]: Time: "<<t3 - t1<<endl;
+}
+
+Eigen::Quaterniond ImuProcess::GetQFromAcc(const Eigen::Vector3d& acc) {
+	Eigen::Vector3d a = acc.normalized();
+	double psi = 0;
+	double theta = -asin(a(0));
+	double phi = atan2(a(1), a(2));
+	auto Rz = Eigen::AngleAxis<double>(psi, Eigen::Vector3d::UnitZ());
+	auto Ry = Eigen::AngleAxis<double>(theta, Eigen::Vector3d::UnitY());
+	auto Rx = Eigen::AngleAxis<double>(phi, Eigen::Vector3d::UnitX());
+	auto Rws = Rz * Ry * Rx;
+	Eigen::Quaterniond qws(Rws);
+	return qws;
+}
+
+inline bool ImuProcess::CheckImuStatic(const V3D &mean_acc, const V3D &mean_gyr, const V3D &cov_acc, const V3D &cov_gyr)
+{
+  double lowAccThreshold = 0.8;  //0.35
+  double lowGyroThreshold = 0.3;  //0.08
+  cout<<"acc norm: "<<mean_acc.norm()<<" gyro norm: "<<mean_gyr.norm()<<endl;
+  // cout<<"acc cov: "<<cov_acc.transpose()<<" gyro cov: "<<cov_gyr.transpose()<<endl;
+  double accScale = mean_acc.norm()> 0.5 * G_m_s2 ? G_m_s2 : 1.0;
+  if (mean_acc.norm() > 1.2*accScale || mean_acc.norm() < 0.8*accScale || mean_gyr.norm() > 2.0*lowGyroThreshold) {
+      return false;
+  }
+
+  // Check the standard deviation of acceleration and gyroscope
+  // If the std is too high, we consider the IMU is not static
+  double gyroStd = sqrt(cov_gyr.x() + cov_gyr.y() + cov_gyr.z());
+  double accStd = sqrt(cov_acc.x() + cov_acc.y() + cov_acc.z());
+  cout<<"acc std: "<<accStd<<" gyro std: "<<gyroStd<<endl;
+  if (accStd * G_m_s2 > lowAccThreshold * accScale || gyroStd > lowGyroThreshold) {
+      return false;
+  }
+
+  return true;
 }
