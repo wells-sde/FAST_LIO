@@ -6,7 +6,7 @@
 	<rosparam command="load" file="$(find fast_lio)/config/mid360.yaml" />
 
 	<param name="feature_extract_enable" type="bool" value="0"/>
-	<param name="point_filter_num" type="int" value="1"/>
+	<param name="point_filter_num" type="int" value="2"/>
 	<param name="max_iteration" type="int" value="3" />
 	<param name="filter_size_surf" type="double" value="0.1" />
 	<param name="filter_size_map" type="double" value="0.1" />
@@ -18,7 +18,7 @@
 	<param name="log_level" type="string" value="info"/> <!-- 可选: debug, info, warn, error -->
 	<env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time:%Y-%m-%d %H:%M:%S.%f}] [${node}] [${file}:${line}]: ${message}"/>
 	<!-- <env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time:%Y-%m-%d %H:%M:%S.%f}] [${node}]: ${message}"/> -->
-	<env name="ROS_LOG_DIR" value="$(find fast_lio)/Log/" />
+	<!-- <env name="ROS_LOG_DIR" value="$(find fast_lio)/Log/" /> -->
 
 	<node name="laserMapping" pkg="fast_lio" type="fastlio_mapping" output="log"/>
 
