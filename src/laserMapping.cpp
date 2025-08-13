@@ -1783,6 +1783,20 @@ void publish_path(const ros::Publisher pubPath)
     msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
     msg_body_pose.header.frame_id = "world";
 
+    //  save  unoptimized pose in world frame
+    auto &pose_q = msg_body_pose.pose.orientation;
+    Eigen::Quaterniond eign_q(pose_q.w, pose_q.x, pose_q.y, pose_q.z);
+    V3D rot_ang(Log(eign_q.toRotationMatrix())); //   旋转向量
+    PointTypePose thisPose6D;  
+    thisPose6D.x = msg_body_pose.pose.position.x ;
+    thisPose6D.y = msg_body_pose.pose.position.y ;
+    thisPose6D.z = msg_body_pose.pose.position.z ;
+    thisPose6D.roll = rot_ang(0) ;
+    thisPose6D.pitch = rot_ang(1) ;
+    thisPose6D.yaw = rot_ang(2) ;
+    thisPose6D.time = msg_body_pose.header.stamp.toSec();
+    fastlio_unoptimized_cloudKeyPoses6D->push_back(thisPose6D); 
+            
     /*** if path is too large, the rvis will crash ***/
     static int jjj = 0;
     jjj++;
@@ -1790,19 +1804,6 @@ void publish_path(const ros::Publisher pubPath)
     {
         path.poses.push_back(msg_body_pose);
         pubPath.publish(path);
-        
-        //  save  unoptimized pose in world frame
-        auto &pose_q = msg_body_pose.pose.orientation;
-        Eigen::Quaterniond eign_q(pose_q.w, pose_q.x, pose_q.y, pose_q.z);
-        V3D rot_ang(Log(eign_q.toRotationMatrix())); //   旋转向量
-        PointTypePose thisPose6D;  
-        thisPose6D.x = msg_body_pose.pose.position.x ;
-        thisPose6D.y = msg_body_pose.pose.position.y ;
-        thisPose6D.z = msg_body_pose.pose.position.z ;
-        thisPose6D.roll = rot_ang(0) ;
-        thisPose6D.pitch = rot_ang(1) ;
-        thisPose6D.yaw = rot_ang(2) ;
-        fastlio_unoptimized_cloudKeyPoses6D->push_back(thisPose6D);   
     }
 }
 
@@ -1843,6 +1844,7 @@ void publish_gnss_path(const ros::Publisher pubPath)
 /*定义pose结构体*/
 struct pose
 {
+    double timestamp;
     Eigen::Vector3d  t ;
     Eigen::Matrix3d  R;
 };
@@ -1863,6 +1865,21 @@ void WriteText(std::ofstream& ofs, pose data){
                                       <<  data.R(1,0)  << " "  << data.R(1,1)  <<" " <<   data.R(1,2)   << " "  <<   data.t[1]  <<  " "
                                       <<  data.R(2,0)  << " "  << data.R(2,1)  <<" " <<   data.R(2,2)   << " "  <<   data.t[2]  <<  std::endl;
 
+}
+
+/* write2txt format TUM*/
+void WritePoseTUM(std::ofstream& ofs, pose data) {
+    Eigen::Quaterniond q(data.R);
+    ofs << std::fixed  << std::setprecision(6)
+        // timestamp x y z q_x q_y q_z q_w
+        << data.timestamp << " "
+        << data.t[0] << " "
+        << data.t[1] << " "
+        << data.t[2] << " "
+        << q.x() << " "
+        << q.y() << " "
+        << q.z() << " "
+        << q.w() << std::endl;
 }
 
 bool savePoseService(fast_lio::save_poseRequest& req, fast_lio::save_poseResponse& res)
@@ -1891,36 +1908,43 @@ bool savePoseService(fast_lio::save_poseRequest& req, fast_lio::save_poseRespons
     for(int i = 0; i  < cloudKeyPoses6D->size(); i++){  
         pose_optimized.t =  Eigen::Vector3d(cloudKeyPoses6D->points[i].x, cloudKeyPoses6D->points[i].y, cloudKeyPoses6D->points[i].z  );
         pose_optimized.R = Exp(double(cloudKeyPoses6D->points[i].roll), double(cloudKeyPoses6D->points[i].pitch), double(cloudKeyPoses6D->points[i].yaw) );
+        pose_optimized.timestamp = cloudKeyPoses6D->points[i].time; //  时间戳
         //transform to world frame
         pose_optimized.t = p_imu->R_world_imu * pose_optimized.t + p_imu->T_world_imu; //  世界系下的位移
         pose_optimized.R = p_imu->R_world_imu * pose_optimized.R; // 世界系下的旋转矩阵
         // write to file
-        WriteText(file_pose_optimized, pose_optimized);
+        // WriteText(file_pose_optimized, pose_optimized);
+        WritePoseTUM(file_pose_optimized, pose_optimized);
     }
     cout << "Sucess global optimized  poses to pose files ..." << endl;
 
     for(int i = 0; i  < fastlio_unoptimized_cloudKeyPoses6D->size(); i++){  
         pose_without_optimized.t =  Eigen::Vector3d(fastlio_unoptimized_cloudKeyPoses6D->points[i].x, fastlio_unoptimized_cloudKeyPoses6D->points[i].y, fastlio_unoptimized_cloudKeyPoses6D->points[i].z  );
         pose_without_optimized.R = Exp(double(fastlio_unoptimized_cloudKeyPoses6D->points[i].roll), double(fastlio_unoptimized_cloudKeyPoses6D->points[i].pitch), double(fastlio_unoptimized_cloudKeyPoses6D->points[i].yaw) );
-        WriteText(file_pose_without_optimized, pose_without_optimized);
+        pose_without_optimized.timestamp = fastlio_unoptimized_cloudKeyPoses6D->points[i].time; //  时间戳
+        // WriteText(file_pose_without_optimized, pose_without_optimized);
+        WritePoseTUM(file_pose_without_optimized, pose_without_optimized);
     }
     cout << "Sucess unoptimized  poses to pose files ..." << endl;
 
     for(int i = 0; i  < gnss_cloudKeyPoses6D->size(); i++){  
         pose_gnss.t =  Eigen::Vector3d(gnss_cloudKeyPoses6D->points[i].x, gnss_cloudKeyPoses6D->points[i].y, gnss_cloudKeyPoses6D->points[i].z  );
         pose_gnss.R = Exp(double(gnss_cloudKeyPoses6D->points[i].roll), double(gnss_cloudKeyPoses6D->points[i].pitch), double(gnss_cloudKeyPoses6D->points[i].yaw) );
+        pose_gnss.timestamp = gnss_cloudKeyPoses6D->points[i].time; //  时间戳
         // transform to world frame
         pose_gnss.t = p_imu->R_world_imu * pose_gnss.t + p_imu->T_world_imu; //  世界系下的位移
         pose_gnss.R = p_imu->R_world_imu * pose_gnss.R; // 世界系下的旋转矩阵
         // write to file
-        WriteText(file_pose_gnss, pose_gnss);
+        // WriteText(file_pose_gnss, pose_gnss);
+        WritePoseTUM(file_pose_gnss, pose_gnss);
     }
     cout << "Sucess gnss  poses to pose files ..." << endl;
+    res.success = true;
 
     file_pose_gnss.close();
     file_pose_optimized.close();
     file_pose_without_optimized.close();
-    return true  ;
+    return true;
 }
 
 /**
@@ -2671,7 +2695,7 @@ int main(int argc, char** argv)
                 publish_map(pubLaserCloudMap);
             }
 
-            frame_num ++;
+            frame_num++;
             /*** Debug variables ***/
             if (runtime_pos_log)
             {
