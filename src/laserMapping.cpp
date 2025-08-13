@@ -2478,15 +2478,15 @@ int main(int argc, char** argv)
     ros::Publisher pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>
             ("/cloud_effected", 10);
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-            ("/Laser_map", 3);
+            ("/Laser_map", 1);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
             ("/lidar_pose", 10);  // /Odometry
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
-            ("/lidar_path", 10);  // /path
+            ("/lidar_path", 1);  // /path
 
     //read full_path.txt file and publish
     // Publisher
-    ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 10, true);
+    ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 1, true);
 
     if (load_path)
     {
@@ -2507,8 +2507,8 @@ int main(int argc, char** argv)
     }
     
     
-    ros::Publisher pubPathUpdate = nh.advertise<nav_msgs::Path>("fast_lio_sam/path_update", 100000);                   //  isam更新后的path
-    pubGnssPath = nh.advertise<nav_msgs::Path>("/gnss_path", 100000);
+    ros::Publisher pubPathUpdate = nh.advertise<nav_msgs::Path>("fast_lio_sam/path_update", 1);                   //  isam更新后的path
+    pubGnssPath = nh.advertise<nav_msgs::Path>("/gnss_path", 1);
     pubLaserCloudSurround = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/keyframe_submap", 1); // 发布局部关键帧map的特征点云
     pubOptimizedGlobalMap = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/map_global_optimized", 1); // 发布局部关键帧map的特征点云
 
@@ -2521,7 +2521,7 @@ int main(int argc, char** argv)
     pubLoopConstraintEdge = nh.advertise<visualization_msgs::MarkerArray>("/fast_lio_sam/mapping/loop_closure_constraints", 1);
 
     // gnss
-    ros::Subscriber sub_gnss = nh.subscribe(gnss_topic, 200000, gnss_cbk);
+    ros::Subscriber sub_gnss = nh.subscribe(gnss_topic, 100, gnss_cbk);
     
     // saveMap  发布地图保存服务
     srvSaveMap  = nh.advertiseService("/save_map" ,  &saveMapService);
