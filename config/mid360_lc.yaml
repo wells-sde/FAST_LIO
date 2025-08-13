@@ -28,6 +28,8 @@ publish:
     scan_publish_en:  true       # false: close all the point cloud output
     dense_publish_en: true       # false: low down the points number in a global-frame point clouds scan.
     scan_bodyframe_pub_en: true  # true: output the point cloud scans in IMU-body-frame
+    map_pub_interval: -1       # publish frequency(eyery k frames) of global point cloud map, 
+                                 # 1: publish map every frame, <=0: do not publish map
 
 pcd_save:
     pcd_save_en: false
@@ -43,12 +45,12 @@ mappingCornerLeafSize: 0.1                    # default: 0.2 - outdoor, 0.1 - in
 mappingSurfLeafSize: 0.2                      # default: 0.4 - outdoor, 0.2 - indoor
 
 # robot motion constraint (in case you are using a 2D robot)
-z_tollerance: 1000                            # meters
-rotation_tollerance: 1000                     # radians
+# z_tollerance: 1000                            # meters
+# rotation_tollerance: 1000                     # radians
 
 # CPU Params
 numberOfCores: 4                              # number of cores for mapping optimization
-mappingProcessInterval: 0.15                  # seconds, regulate mapping frequency
+# mappingProcessInterval: 0.15                  # seconds, regulate mapping frequency
 
 # Surrounding map
 surroundingkeyframeAddingDistThreshold: 1.0   # meters, regulate keyframe adding threshold

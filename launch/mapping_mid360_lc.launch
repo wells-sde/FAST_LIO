@@ -12,6 +12,11 @@
 	<param name="filter_size_map" type="double" value="0.1" />
 	<param name="cube_side_length" type="double" value="1000" />
 	<param name="runtime_pos_log_enable" type="bool" value="0" />
+	<param name="save_dir" type="string" value="$(find fast_lio)" />
+
+	<param name="log_level" type="string" value="info"/> <!-- 可选: debug, info, warn, error -->
+	<env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time:%Y-%m-%d %H:%M:%S.%f}] [${node}]: ${message}"/>
+	
     <node pkg="fast_lio" type="fastlio_mapping" name="laserMapping" output="screen" /> 
 
 	<group if="$(arg rviz)">
