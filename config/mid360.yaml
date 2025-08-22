@@ -22,6 +22,8 @@ mapping:
     extrinsic_R: [ 1, 0, 0,
                    0, 1, 0,
                    0, 0, 1]
+    max_vel: 1.5                # maximum velocity of the robot, unit: m/s
+    max_rotate_rate: 3.14       # maximum rotation rate of the robot, unit: rad/s
 
 publish:
     path_en:  true
