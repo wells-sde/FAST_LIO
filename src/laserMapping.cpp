@@ -1023,6 +1023,14 @@ int main(int argc, char** argv)
     nh.param<float>("mapping/max_vel", MAX_VEL, 1.5f);
     nh.param<float>("mapping/max_rotate_rate", MAX_ROTATE_RATE, 3.14f);
 
+    //for unitree G1 robot
+    nh.param<float>("preprocess/mask/maxx", p_pre->mask_maxx, 0.1f);
+    nh.param<float>("preprocess/mask/minx", p_pre->mask_minx, -0.1f);
+    nh.param<float>("preprocess/mask/maxy", p_pre->mask_maxy, 0.1f);
+    nh.param<float>("preprocess/mask/miny", p_pre->mask_miny, -0.1f);
+    nh.param<float>("preprocess/mask/maxz", p_pre->mask_maxz, 0.1f);
+    nh.param<float>("preprocess/mask/minz", p_pre->mask_minz, -0.1f);
+
     SAVE_DIR += "/";
     DEBUG_FILE_DIR = SAVE_DIR + "Log/";
     RECORD_IMU_LOG = runtime_pos_log;
