@@ -40,8 +40,8 @@ load_previous_path: false # load previous path
 path_file: "PCD/full_path.txt" # path file to save/load    
 
 # voxel filter paprams
-odometrySurfLeafSize: 0.2                     # default: 0.4 - outdoor, 0.2 - indoor
-mappingCornerLeafSize: 0.1                    # default: 0.2 - outdoor, 0.1 - indoor
+odometrySurfLeafSize: 0.2                     # default: 0.4 - outdoor, 0.2 - indoor    not used
+mappingCornerLeafSize: 0.1                    # default: 0.2 - outdoor, 0.1 - indoor    not used
 mappingSurfLeafSize: 0.2                      # default: 0.4 - outdoor, 0.2 - indoor
 
 # robot motion constraint (in case you are using a 2D robot)
@@ -59,7 +59,7 @@ surroundingKeyframeDensity: 2.0               # meters, downsample surrounding k
 surroundingKeyframeSearchRadius: 50.0         # meters, within n meters scan-to-map optimization (when loop closure disabled)
 
 # Loop closure
-loopClosureEnableFlag: true                   # use loopclousre or not 
+loopClosureEnableFlag: false                   # use loopclousre or not 
 loopClosureFrequency: 4.0                     # Hz, regulate loop closure constraint add frequency
 surroundingKeyframeSize: 50                   # submap size (when loop closure enabled)
 historyKeyframeSearchRadius: 1.5             # meters, key frame that is within n meters from current pose will be considerd for loop closure
@@ -80,4 +80,4 @@ recontructKdTree: true
 
 # Export settings
 savePCD: false                         # https://github.com/TixiaoShan/LIO-SAM/issues/3
-savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
+savePCDDirectory: "/fast_lio_sam_results/"        # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
