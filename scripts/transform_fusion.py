@@ -15,7 +15,8 @@ from nav_msgs.msg import Odometry
 
 cur_odom_to_baselink = None
 cur_map_to_odom = None
-
+cur_timestamp = None
+last_timestamp = -1.0
 
 def pose_to_mat(pose_msg):
     return np.matmul(
@@ -25,11 +26,15 @@ def pose_to_mat(pose_msg):
 
 
 def transform_fusion():
-    global cur_odom_to_baselink, cur_map_to_odom
+    global cur_odom_to_baselink, cur_map_to_odom, cur_timestamp, last_timestamp
 
     br = tf.TransformBroadcaster()
     while True:
         time.sleep(1 / FREQ_PUB_LOCALIZATION)
+
+        # 如果里程计有更新才进行全局定位
+        if cur_timestamp is None  or cur_timestamp - last_timestamp < 0.01:
+            continue
 
         # TODO 这里注意线程安全
         cur_odom = copy.copy(cur_odom_to_baselink)
@@ -38,10 +43,11 @@ def transform_fusion():
         else:
             T_map_to_odom = np.eye(4)
 
+        last_timestamp = cur_odom.header.stamp.to_sec()
         br.sendTransform(tf.transformations.translation_from_matrix(T_map_to_odom),
                          tf.transformations.quaternion_from_matrix(T_map_to_odom),
                          rospy.Time.now(),
-                         'camera_init', 'map')
+                         'world', 'map')
         if cur_odom is not None:
             # 发布全局定位的odometry
             localization = Odometry()
@@ -61,8 +67,9 @@ def transform_fusion():
 
 
 def cb_save_cur_odom(odom_msg):
-    global cur_odom_to_baselink
+    global cur_odom_to_baselink, cur_timestamp
     cur_odom_to_baselink = odom_msg
+    cur_timestamp = odom_msg.header.stamp.to_sec()
 
 
 def cb_save_map_to_odom(odom_msg):
@@ -72,12 +79,12 @@ def cb_save_map_to_odom(odom_msg):
 
 if __name__ == '__main__':
     # tf and localization publishing frequency (HZ)
-    FREQ_PUB_LOCALIZATION = 50
+    FREQ_PUB_LOCALIZATION = 100
 
     rospy.init_node('transform_fusion')
     rospy.loginfo('Transform Fusion Node Inited...')
 
-    rospy.Subscriber('/Odometry', Odometry, cb_save_cur_odom, queue_size=1)
+    rospy.Subscriber('/lidar_pose', Odometry, cb_save_cur_odom, queue_size=1)
     rospy.Subscriber('/map_to_odom', Odometry, cb_save_map_to_odom, queue_size=1)
 
     pub_localization = rospy.Publisher('/localization', Odometry, queue_size=1)
