@@ -146,7 +146,8 @@ class Preprocess
   double blind; //xy平面距离，小于此阈值不计算特征
   bool feature_enabled, given_offset_time;
   ros::Publisher pub_full, pub_surf, pub_corn;
-    
+
+  float mask_maxx, mask_minx, mask_maxy, mask_miny, mask_maxz, mask_minz;
 
   private:
   void avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg);

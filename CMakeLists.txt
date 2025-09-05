@@ -84,6 +84,7 @@ include_directories(
 add_message_files(
   FILES
   Pose6D.msg
+  OdomState.msg
 )
 
 add_service_files(
