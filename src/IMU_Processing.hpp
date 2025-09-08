@@ -61,6 +61,7 @@ class ImuProcess
   V3D cov_bias_gyr;
   V3D cov_bias_acc;
   double first_lidar_time;
+  bool   imu_need_init_ = true;
   int lidar_type;
   M3D R_world_imu;
   V3D T_world_imu;
@@ -86,7 +87,6 @@ class ImuProcess
   double last_lidar_end_time_;
   int    init_iter_num = 1; // 初始化时，imu数据迭代的次数
   bool   b_first_frame_ = true;
-  bool   imu_need_init_ = true;
 };
 
 ImuProcess::ImuProcess()

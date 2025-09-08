@@ -2305,6 +2305,11 @@ bool FailureDetection(const double &curtime)
     Eigen::Quaterniond curq(geoQuat.w, geoQuat.x, geoQuat.y, geoQuat.z);
     Eigen::Quaterniond delta_q = q_last.conjugate() * curq;
     double angle_diff = 2 * acos(delta_q.w());
+    if (angle_diff < 0)
+        angle_diff = -angle_diff;
+    if (angle_diff > M_PI)
+        angle_diff = 2 * M_PI - angle_diff;
+
     if (last_timestamp > 0 && angle_diff / (curtime - last_timestamp) > MAX_ROTATE_RATE) // 3.14 rad/s
     {
         failure = true;
@@ -2648,14 +2653,22 @@ int main(int argc, char** argv)
             state_point = kf.get_x();
             pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
 
+            flg_EKF_inited = !p_imu->imu_need_init_;
+            //如果初始化未成功，发布发布定位状态
+            if (!flg_EKF_inited)
+            {
+                publish_odom_state(pubOdomState);
+                continue;
+            }
+
             if (feats_undistort->empty() || (feats_undistort == NULL))
             {
                 ROS_WARN("No point, skip this scan!\n");
                 continue;
             }
 
-            flg_EKF_inited = (Measures.lidar_beg_time - first_lidar_time) < INIT_TIME ? \
-                            false : true;
+            // flg_EKF_inited = (Measures.lidar_beg_time - first_lidar_time) < INIT_TIME ? \
+            //                 false : true;
             /*** Segment the map in lidar FOV ***/
             lasermap_fov_segment();
 
