@@ -1,5 +1,5 @@
 ## 1. Prerequisites
-ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server), [GTSAM>4.0.0](https://gtsam.org/get_started/),  [GeographicLib](https://github.com/geographiclib/geographiclib/tree/release), [Open3D](https://github.com/isl-org/Open3D)
+ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server), [GTSAM>4.0.0](https://gtsam.org/get_started/),  [GeographicLib](https://github.com/geographiclib/geographiclib/tree/release), [Open3D](https://www.open3d.org/docs/release/getting_started.html)
 
 ## 2. Build
 Clone the repository and catkin_make:
@@ -57,11 +57,13 @@ rviz -d lio_map.rviz
 #运行slam定位模式,提供点云地图文件
 roslaunch fast_lio localization_unitree_G1.launch map_file:=filterGlobalMap.pcd
 
+# LIDAR driver
+roslaunch livox_ros_driver2 msg_MID360.launch
+
 #提供机器人相对地图坐标原点的初始位置
 # x y z yaw pitch roll
 rosrun fast_lio publish_initial_pose.py 0 0 0 0 0 0
 
-# 也可以在rviz 中通过initial_pose 设置初始位置
-
+# 也可以在rviz中使用2D Pose Estimate功能设置初始位置
 
 ```
