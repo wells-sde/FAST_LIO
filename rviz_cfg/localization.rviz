@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Grid1
         - /mapping1
         - /mapping1/surround1
         - /mapping1/currPoints1/Autocompute Value Bounds1
@@ -38,7 +39,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: map
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -47,7 +48,7 @@ Visualization Manager:
   Class: ""
   Displays:
     - Alpha: 1
-      Cell Size: 0.20000000298023224
+      Cell Size: 1
       Class: rviz/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -61,8 +62,8 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
-      Reference Frame: body
+      Plane Cell Count: 20
+      Reference Frame: map
       Value: true
     - Alpha: 1
       Class: rviz/Axes
@@ -411,7 +412,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 51.57212829589844
+      Distance: 38.23688507080078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -419,9 +420,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 13.013724327087402
-        Y: 5.257203102111816
-        Z: -0.07960806041955948
+        X: 8.40200424194336
+        Y: 3.6750035285949707
+        Z: -0.07808519154787064
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -429,7 +430,7 @@ Visualization Manager:
       Near Clip Distance: 0.009999999776482582
       Pitch: 1.5697963237762451
       Target Frame: body
-      Yaw: 1.5678774118423462
+      Yaw: 1.5628774166107178
     Saved: ~
 Window Geometry:
   Displays:
@@ -447,5 +448,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1386
-  X: 295
+  X: 72
   Y: 27

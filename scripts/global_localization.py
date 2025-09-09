@@ -25,6 +25,7 @@ cur_scan = None
 cur_timestamp = None
 last_timestamp = -1.0
 
+USE_ICP_PLANE_TO_PLANE = False
 MAX_ITERATION = 30
 INITIAL_MAX_ITERATION = 50
 
@@ -47,16 +48,27 @@ def msg_to_array(pc_msg):
     return pc
 
 
-def registration_at_scale(pc_scan, pc_map, initial, scale):
+def registration_at_scale(pc_scan, pc_map, initial, scale, max_distance=1.0, max_iter=30):
     result_icp = o3d.pipelines.registration.registration_icp(
         voxel_down_sample(pc_scan, SCAN_VOXEL_SIZE * scale), voxel_down_sample(pc_map, MAP_VOXEL_SIZE * scale),
-        1.0 * scale, initial,
+        max_distance* scale, initial,
         o3d.pipelines.registration.TransformationEstimationPointToPoint(),
-        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=20)
+        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_iter)
     )
 
     return result_icp.transformation, result_icp.fitness, result_icp.inlier_rmse
 
+def registration_gicp(pc_scan, pc_map, initial, max_distance=1.0, max_iter=30):
+    pc_scan_down = voxel_down_sample(pc_scan, SCAN_VOXEL_SIZE)
+    pc_scan_down.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=SCAN_VOXEL_SIZE*2.0, max_nn=30))
+    
+    # gicp
+    reg = o3d.pipelines.registration.registration_generalized_icp(
+        pc_scan_down, pc_map, max_distance, initial,
+        o3d.pipelines.registration.TransformationEstimationForGeneralizedICP(),
+        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_iter)
+    )
+    return reg.transformation, reg.fitness, reg.inlier_rmse
 
 def inverse_se3(trans):
     trans_inverse = np.eye(4)
@@ -95,6 +107,14 @@ def crop_global_map_in_FOV(global_map, pose_estimation, cur_odom):
     global_map_in_map = np.column_stack([global_map_in_map, np.ones(len(global_map_in_map))])
     global_map_in_base_link = np.matmul(T_base_link_to_map, global_map_in_map.T).T
 
+    # rotate normals if using plane to plane icp
+    if USE_ICP_PLANE_TO_PLANE:
+        global_map_in_map_normals = np.array(global_map.normals)
+        R_map_to_base_link = T_base_link_to_map[:3, :3]
+        global_map_in_base_link_normals = np.matmul(R_map_to_base_link, global_map_in_map_normals.T).T
+        global_map_in_base_link = np.column_stack([global_map_in_base_link[:, :3], global_map_in_base_link_normals, np.ones(len(global_map_in_base_link))])
+
+
     # 将视角内的地图点提取出来
     if FOV > 3.14:
         # 环状lidar 仅过滤距离
@@ -111,6 +131,9 @@ def crop_global_map_in_FOV(global_map, pose_estimation, cur_odom):
         )
     global_map_in_FOV = o3d.geometry.PointCloud()
     global_map_in_FOV.points = o3d.utility.Vector3dVector(np.squeeze(global_map_in_map[indices, :3]))
+
+    if USE_ICP_PLANE_TO_PLANE:
+        global_map_in_FOV.normals = o3d.utility.Vector3dVector(np.squeeze(global_map_in_base_link[indices, 3:6]))
 
     # 发布fov内点云
     header = cur_odom.header
@@ -144,8 +167,12 @@ def global_localization(pose_estimation):
     # 精配准
     # transformation, fitness = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=transformation,
     #                                                 scale=1)
-    transformation, fitness, rmse = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
-                                                    scale=1)
+    if USE_ICP_PLANE_TO_PLANE:
+        transformation, fitness, rmse = registration_gicp(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
+                                                    max_distance=1.0, max_iter=MAX_ITERATION)
+    else:
+        transformation, fitness, rmse = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
+                                                    max_distance=1.0, scale=1)
     toc = time.time()
     rospy.loginfo('Cost of Time of Global Register: {}s'.format(toc - tic))
 
@@ -189,6 +216,8 @@ def initialize_global_map(pc_msg):
     global_map = o3d.geometry.PointCloud()
     global_map.points = o3d.utility.Vector3dVector(msg_to_array(pc_msg)[:, :3])
     global_map = voxel_down_sample(global_map, MAP_VOXEL_SIZE)
+    if USE_ICP_PLANE_TO_PLANE:
+        global_map.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=MAP_VOXEL_SIZE*2.0, max_nn=30))
     rospy.loginfo('Global map received.')
 
 def load_global_map(pcd_path):
