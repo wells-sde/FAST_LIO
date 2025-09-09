@@ -144,7 +144,7 @@ def crop_global_map_in_FOV(global_map, pose_estimation, cur_odom):
 
 
 def global_localization(pose_estimation):
-    global global_map, cur_scan, cur_odom, T_map_to_odom, last_timestamp
+    global global_map, cur_scan, cur_odom, T_map_to_odom, last_timestamp, initialized
     
     # 用icp配准
     # print(global_map, cur_scan, T_map_to_odom)
@@ -167,12 +167,18 @@ def global_localization(pose_estimation):
     # 精配准
     # transformation, fitness = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=transformation,
     #                                                 scale=1)
+
+    if initialized is False:
+        max_iteration = INITIAL_MAX_ITERATION
+    else:
+        max_iteration = MAX_ITERATION
+
     if USE_ICP_PLANE_TO_PLANE:
         transformation, fitness, rmse = registration_gicp(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
-                                                    max_distance=1.0, max_iter=MAX_ITERATION)
+                                                    max_distance=1.0, max_iter=max_iteration)
     else:
         transformation, fitness, rmse = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
-                                                    max_distance=1.0, scale=1)
+                                                    max_distance=1.0, scale=1, max_iter=max_iteration)
     toc = time.time()
     rospy.loginfo('Cost of Time of Global Register: {}s'.format(toc - tic))
 
