@@ -29,6 +29,12 @@ USE_ICP_PLANE_TO_PLANE = False
 MAX_ITERATION = 30
 INITIAL_MAX_ITERATION = 50
 
+need_global_loc=True
+first_success_pose = None
+first_success_time = None
+
+last_t_map_to_odom = None
+
 
 def pose_to_mat(pose_msg):
     return np.matmul(
@@ -148,7 +154,7 @@ def global_localization(pose_estimation):
     
     # 用icp配准
     # print(global_map, cur_scan, T_map_to_odom)
-    rospy.loginfo('Global localization by scan-to-map matching......')
+    # rospy.loginfo('Global localization by scan-to-map matching......')
 
     last_timestamp = cur_odom.header.stamp.to_sec()
     # TODO 这里注意线程安全
@@ -199,6 +205,43 @@ def global_localization(pose_estimation):
         rospy.loginfo('frame {}, global localization success!!!!'.format(last_timestamp))
         rospy.loginfo('x y z, roll pitch yaw:{} {}'.format(xyz, euler))
         rospy.loginfo('fitness score:{}, inlier rmse: {}'.format(fitness, rmse))
+
+        if initialized is False:
+            global first_success_pose, first_success_time,last_t_map_to_odom
+            first_success_pose = cur_odom.pose.pose.position
+            first_success_time = cur_odom.header.stamp.to_sec()
+            last_t_map_to_odom = copy.copy(T_map_to_odom)
+        else:
+            global need_global_loc
+            # 如果已经初始化成功了, 但是map_to_odom变化很大，说明全局定位偏了
+            # 计算T_map_to_odom和last_t_map_to_odom的差异   
+            # delta_trans = np.linalg.norm(T_map_to_odom[:3, 3] - last_t_map_to_odom[:3, 3])
+            # delta_rot = np.arccos(
+            #     min(
+            #         max(
+            #             (np.trace(np.dot(T_map_to_odom[:3, :3], last_t_map_to_odom[:3, :3].T)) - 1) / 2.0,
+            #             -1.0
+            #         ),
+            #         1.0
+            #     )
+            # )
+            # if delta_trans > MAP_VOXEL_SIZE*1.5 or delta_rot > math.radians(5.0):
+            #     rospy.logwarn('T_map_to_odom inconsitent. Delta translation: {:.4f} m, Delta rotation: {:.4f} rad'.format(delta_trans, delta_rot))
+            #     return False
+            
+            # 更新last_t_map_to_odom
+            last_t_map_to_odom = copy.copy(T_map_to_odom)
+
+            # 已经初始化成功后 需要满足一定条件才认为收敛, 停止全局定位
+            enough_time = cur_odom.header.stamp.to_sec() - first_success_time > 5.0/FREQ_LOCALIZATION
+            cur_pos = np.array([cur_odom.pose.pose.position.x, cur_odom.pose.pose.position.y, cur_odom.pose.pose.position.z])
+            first_pos = np.array([first_success_pose.x, first_success_pose.y, first_success_pose.z])
+            moved_distance = np.linalg.norm(cur_pos - first_pos) > 3.0
+            converged = rmse < MAP_VOXEL_SIZE * 1.0 and fitness > 0.99
+            if enough_time and moved_distance and converged:
+                need_global_loc = False
+                rospy.logwarn('Global localization converged!!!!!!Exit global localization thread.')
+            
         return True
     else:
         rospy.logwarn('frame {}, Not match!!!!'.format(last_timestamp))
@@ -258,8 +301,8 @@ def cb_save_cur_scan(pc_msg):
 
 
 def thread_localization():
-    global T_map_to_odom, cur_timestamp, last_timestamp
-    while True:
+    global T_map_to_odom, cur_timestamp, last_timestamp, need_global_loc
+    while need_global_loc:
         # 每隔一段时间进行全局定位
         rospy.sleep(1 / FREQ_LOCALIZATION)
 
@@ -276,7 +319,7 @@ if __name__ == '__main__':
     SCAN_VOXEL_SIZE = 0.1
 
     # Global localization frequency (HZ)
-    FREQ_LOCALIZATION = 0.5
+    FREQ_LOCALIZATION = 1.0
 
     # The threshold of global localization,
     # only those scan2map-matching with higher fitness than LOCALIZATION_TH will be taken
