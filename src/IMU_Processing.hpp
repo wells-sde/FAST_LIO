@@ -28,7 +28,7 @@
 
 /// *************Preconfiguration
 
-#define MAX_INI_COUNT (10)
+#define MAX_INI_COUNT (20)
 
 const bool time_list(PointType &x, PointType &y) {return (x.curvature < y.curvature);};
 
@@ -61,6 +61,7 @@ class ImuProcess
   V3D cov_bias_gyr;
   V3D cov_bias_acc;
   double first_lidar_time;
+  bool   imu_need_init_ = true;
   int lidar_type;
   M3D R_world_imu;
   V3D T_world_imu;
@@ -78,15 +79,14 @@ class ImuProcess
   vector<M3D>    v_rot_pcl_;
   M3D Lidar_R_wrt_IMU;
   V3D Lidar_T_wrt_IMU;
-  V3D mean_acc;
+  V3D mean_acc; //初始化时得到的加速度均值
   V3D mean_gyr;
   V3D angvel_last;
   V3D acc_s_last;
   double start_timestamp_;
   double last_lidar_end_time_;
-  int    init_iter_num = 1;
+  int    init_iter_num = 1; // 初始化时，imu数据迭代的次数
   bool   b_first_frame_ = true;
-  bool   imu_need_init_ = true;
 };
 
 ImuProcess::ImuProcess()
@@ -219,13 +219,13 @@ bool ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
   init_state.offset_R_L_I = Lidar_R_wrt_IMU;
   kf_state.change_x(init_state);
 
-  esekfom::esekf<state_ikfom, 12, input_ikfom>::cov init_P = kf_state.get_P();
-  init_P.setIdentity();
-  init_P(6,6) = init_P(7,7) = init_P(8,8) = 0.00001;
-  init_P(9,9) = init_P(10,10) = init_P(11,11) = 0.00001;
-  init_P(15,15) = init_P(16,16) = init_P(17,17) = 0.0001;
-  init_P(18,18) = init_P(19,19) = init_P(20,20) = 0.001;
-  init_P(21,21) = init_P(22,22) = 0.00001; 
+  esekfom::esekf<state_ikfom, 12, input_ikfom>::cov init_P = kf_state.get_P(); // 获取协方差矩阵模版
+  init_P.setIdentity(); //以下初始化协方差
+  init_P(6,6) = init_P(7,7) = init_P(8,8) = 0.00001; //外参r
+  init_P(9,9) = init_P(10,10) = init_P(11,11) = 0.00001;//外参t
+  init_P(15,15) = init_P(16,16) = init_P(17,17) = 0.0001;//bias g
+  init_P(18,18) = init_P(19,19) = init_P(20,20) = 0.001;//bias a
+  init_P(21,21) = init_P(22,22) = 0.00001; // S2   重力记为S2流形
   kf_state.change_P(init_P);
   last_imu_ = meas.imu.back();
 
@@ -352,9 +352,25 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikf
                * P_compensate = R_imu_e ^ T * (R_i * P_i + T_ei) where T_ei is represented in global frame */
               M3D R_i(R_imu * Exp(angvel_avr, dt));
 
-              V3D P_i(it_pcl->x, it_pcl->y, it_pcl->z);
-              V3D T_ei(pos_imu + vel_imu * dt + 0.5 * acc_imu * dt * dt - imu_state.pos);
-              V3D P_compensate = imu_state.offset_R_L_I.conjugate() * (imu_state.rot.conjugate() * (R_i * (imu_state.offset_R_L_I * P_i + imu_state.offset_T_L_I) + T_ei) - imu_state.offset_T_L_I);// not accurate!
+              V3D P_i(it_pcl->x, it_pcl->y, it_pcl->z);//lidar系下索引i点的坐标
+              //imu_state:lidar终点时刻与imu终点时刻较大者，imu位姿
+              //Ti - Te
+              //T_ei 从imu终点位置指向索引i时刻imu位置的平移向量，w系, 即T_i - T_e
+              V3D T_ei(pos_imu + vel_imu * dt + 0.5 * acc_imu * dt * dt - imu_state.pos);//T(i <-- end)
+              // 从imu终点位置指向索引i时刻imu位置的平移向量
+
+              //imu_state.offset_R_L_I:终点时刻imu和lidar的外参
+
+              /***  变换： 终点时刻lidar系 <-- 终点时刻imu（body系） <-- 畸变纠正到global系 <-- 终点时刻imu（body系）<-- 终点时刻lidar系
+               * 在imu（body）系下进行畸变纠正到w系，可能不太准确
+               * (imu_state.offset_R_L_I * P_i + imu_state.offset_T_L_I) 将i点，按照imu终点时刻的外参，从lidar系转换到终点时刻的imu系下
+               * (R_i * ( P ) + T_i)  畸变纠正，将i点纠正到global系下
+               * (imu_state.rot.conjugate() * ( P - T_e)  将i点旋转到终点时刻的，imu系下
+               * T_i - T_e = T_ei
+               * imu_state.offset_R_L_I.conjugate() * （P - imu_state.offset_T_L_I) 变换到终点时刻的lidar系下
+               ***/
+              V3D P_compensate = imu_state.offset_R_L_I.conjugate() * (imu_state.rot.conjugate() * \
+              (R_i * (imu_state.offset_R_L_I * P_i + imu_state.offset_T_L_I) + T_ei) - imu_state.offset_T_L_I);// not accurate!
 
               // save Undistorted points and their rotation
               it_pcl->x = P_compensate(0);
