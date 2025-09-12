@@ -4,7 +4,7 @@
 	<arg name="rviz" default="true" />
 	<arg name="map_file" default="filterGlobalMap.pcd" />
 
-	<param name="use_sim_time" value="true"/>
+	<param name="use_sim_time" value="false"/>
 
 	<rosparam command="load" file="$(find fast_lio)/config/mid360_lc_G1.yaml" />
 

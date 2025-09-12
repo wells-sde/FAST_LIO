@@ -5,17 +5,14 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Grid1
         - /mapping1
-        - /mapping1/surround1
         - /mapping1/currPoints1/Autocompute Value Bounds1
-        - /Odometry1/Odometry1
+        - /Odometry1
         - /Odometry1/Odometry1/Shape1
         - /Odometry1/Odometry1/Covariance1
         - /Odometry1/Odometry1/Covariance1/Position1
         - /Odometry1/Odometry1/Covariance1/Orientation1
         - /Localization1
-        - /Localization1/submap_in_FOV1
         - /Localization1/map1
         - /Localization1/localization1
         - /Localization1/localization1/Shape1
@@ -39,7 +36,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: map
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -116,7 +113,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 1000
-          Enabled: true
+          Enabled: false
           Invert Rainbow: true
           Max Color: 255; 255; 255
           Max Intensity: 70
@@ -133,7 +130,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -282,7 +279,7 @@ Visualization Manager:
           Queue Size: 10
           Selectable: true
           Size (Pixels): 1
-          Size (m): 0.019999999552965164
+          Size (m): 0.029999999329447746
           Style: Flat Squares
           Topic: /cloud_map
           Unreliable: false
@@ -374,6 +371,14 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        body:
+          Value: true
+        camera_init:
+          Value: true
+        map:
+          Value: true
+        world:
+          Value: true
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -381,7 +386,12 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        map:
+          world:
+            body:
+              {}
+            camera_init:
+              {}
       Update Interval: 0
       Value: true
   Enabled: true
@@ -412,7 +422,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 38.23688507080078
+      Distance: 28.27311134338379
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -420,9 +430,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 8.40200424194336
-        Y: 3.6750035285949707
-        Z: -0.07808519154787064
+        X: 1.6069929599761963
+        Y: 0.364973783493042
+        Z: -0.07472141832113266
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

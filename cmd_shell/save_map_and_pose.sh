@@ -7,8 +7,17 @@ if [ "$#" -ne 1 ]; then
 fi
 
 OUTPUT_DIR=$1
+MAPFILE_PATH="${OUTPUT_DIR}/mapfile.ot"
+mkdir -p "$OUTPUT_DIR"
 
-MAPFILE_PATH=$1 + "/mapfile.ot"
+# 获取当前文件夹的绝对路径
+SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+
+# ros workspace 根目录
+ROS_WORKSPACE_DIR=$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")
+echo "ROS_WORKSPACE_DIR: $ROS_WORKSPACE_DIR"
+
+source "$ROS_WORKSPACE_DIR/devel/setup.bash"
 
 # Run the octomap_saver command with the provided file path
 rosrun octomap_server octomap_saver -f "$MAPFILE_PATH"
