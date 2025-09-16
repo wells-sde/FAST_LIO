@@ -74,6 +74,7 @@ include_directories(
 add_message_files(
   FILES
   Pose6D.msg
+  OdomState.msg
 )
 
 generate_messages(

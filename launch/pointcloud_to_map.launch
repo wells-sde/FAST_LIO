@@ -1,4 +1,6 @@
 <launch>
+	<arg name="cloud_file" default="GlobalMap.pcd" />
+
   <node pkg="octomap_server" type="octomap_server_node" name="octomap_server" output="screen">
     <param name="base_frame_id" value="world" />
     <!-- resolution in meters per pixel -->
@@ -15,6 +17,8 @@
     <!-- max/min height for occupancy map, should be in meters -->
     <param name="pointcloud_max_z" value="2.0" />
     <param name="pointcloud_min_z" value="-2.0" />
+    <param name="occupancy_max_z" value="0.3"/>
+    <param name="occupancy_min_z" value="-1.0"/> <!-- 利用高度过滤地面点云 -->
     <param name="filter_ground" value="false" />
     <param name="filter_speckles" type="bool" value="true" />
  
@@ -22,7 +26,11 @@
     <!-- <remap from="cloud_in" to="/Laser_map" /> -->
     <remap from="projected_map" to="/map" />    <!-- 输出栅格地图话题 -->
 
- 
   </node>
+
+  <node pkg="pcl_ros" type="pcd_to_pointcloud" name="map_publishe" output="screen"
+		  args="$(arg cloud_file) 5 _frame_id:=world cloud_pcd:=/cloud_in" />
+
+  <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz_map" args="-d $(find fast_lio)/rviz_cfg/pcd_to_map.rviz" /> 
  
 </launch>

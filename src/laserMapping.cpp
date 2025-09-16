@@ -59,11 +59,15 @@
 #include <livox_ros_driver2/CustomMsg.h>
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
+#include <fast_lio/OdomState.h>
 
 #define INIT_TIME           (0.1)
 #define LASER_POINT_COV     (0.001)
 #define MAXN                (720000)
 #define PUBFRAME_PERIOD     (20)
+
+enum Odom_State{NOT_INITIALIZED, ODOM_OK, ODOM_BAD, ODOM_FAILED= 99};
+Odom_State odom_state = NOT_INITIALIZED;
 
 /*** Time Log Variables ***/
 double kdtree_incremental_time = 0.0, kdtree_search_time = 0.0, kdtree_delete_time = 0.0;
@@ -95,6 +99,10 @@ bool   point_selected_surf[100000] = {0};
 bool   lidar_pushed, flg_first_scan = true, flg_exit = false, flg_EKF_inited;
 bool   scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
 int lidar_type;
+
+//for detect failure
+float MAX_VEL = 1.5f;  // 1.5 m/s
+float MAX_ROTATE_RATE = M_PI; // 180 deg/s
 
 bool path_save = true;
 bool load_path = false;
@@ -128,6 +136,8 @@ V3F XAxisPoint_body(LIDAR_SP_LEN, 0.0, 0.0);
 V3F XAxisPoint_world(LIDAR_SP_LEN, 0.0, 0.0);
 V3D euler_cur;
 V3D position_last(Zero3d);
+Eigen::Quaterniond q_last(Eigen::Quaterniond::Identity());
+double last_timestamp = -1.0;
 V3D Lidar_T_wrt_IMU(Zero3d);
 M3D Lidar_R_wrt_IMU(Eye3d);
 
@@ -884,6 +894,65 @@ void loadPathFromFile(const std::string& file_path, nav_msgs::Path& path_msg) {
     file.close();
 }
 
+bool FailureDetection(const double &curtime)
+{
+    static int failure_count = 0;
+    bool failure = false;
+    if (state_point.vel.norm() > MAX_VEL) // 1.5 m/s
+    {
+        failure = true;
+        ROS_ERROR("Abnormal state estimation, velocity too large: %f m/s", state_point.vel.norm());
+    }
+
+    double pos_diff = (state_point.pos - position_last).norm();
+    if (last_timestamp > 0 && pos_diff / (curtime - last_timestamp) > MAX_VEL) // 1.5 m/s
+    {
+        failure = true;
+        ROS_ERROR("Abnormal state estimation, position jump too large: %f m, time diff %fs", 
+            pos_diff, curtime - last_timestamp);
+    }
+
+    Eigen::Quaterniond curq(geoQuat.w, geoQuat.x, geoQuat.y, geoQuat.z);
+    Eigen::Quaterniond delta_q = q_last.conjugate() * curq;
+    double angle_diff = 2 * acos(delta_q.w());
+    if (last_timestamp > 0 && angle_diff / (curtime - last_timestamp) > MAX_ROTATE_RATE) // 3.14 rad/s
+    {
+        failure = true;
+        ROS_ERROR("Abnormal state estimation, rotation jump too large: %f degree, time diff %fs", 
+            angle_diff*180/M_PI, curtime - last_timestamp);
+    }   
+
+    if (failure) 
+    {
+        failure_count++;
+        odom_state = ODOM_BAD;
+    }
+    else
+    {
+        failure_count = 0;
+        odom_state = ODOM_OK;
+        return false;
+    }
+
+    if (failure_count >= 10)
+    {
+        // failure_count = 0;
+        odom_state = ODOM_FAILED;
+        return true;
+    }
+    
+    return false;
+}
+
+void publish_odom_state(const ros::Publisher & pubOdomState)
+{
+    fast_lio::OdomState odom_state_msg;
+    odom_state_msg.header.stamp = ros::Time().fromSec(lidar_end_time);
+    odom_state_msg.header.frame_id = "world";
+    odom_state_msg.state = odom_state;
+    pubOdomState.publish(odom_state_msg);
+}
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "laserMapping");
@@ -950,6 +1019,17 @@ int main(int argc, char** argv)
     nh.param<bool>("load_previous_path", load_path, false);
     nh.param<string>("path_file", path_file, "/PCD/full_path.txt");
     nh.param<string>("save_dir", SAVE_DIR, "");
+
+    nh.param<float>("mapping/max_vel", MAX_VEL, 1.5f);
+    nh.param<float>("mapping/max_rotate_rate", MAX_ROTATE_RATE, 3.14f);
+
+    //for unitree G1 robot
+    nh.param<float>("preprocess/mask/maxx", p_pre->mask_maxx, 0.1f);
+    nh.param<float>("preprocess/mask/minx", p_pre->mask_minx, -0.1f);
+    nh.param<float>("preprocess/mask/maxy", p_pre->mask_maxy, 0.1f);
+    nh.param<float>("preprocess/mask/miny", p_pre->mask_miny, -0.1f);
+    nh.param<float>("preprocess/mask/maxz", p_pre->mask_maxz, 0.1f);
+    nh.param<float>("preprocess/mask/minz", p_pre->mask_minz, -0.1f);
 
     SAVE_DIR += "/";
     DEBUG_FILE_DIR = SAVE_DIR + "Log/";
@@ -1025,6 +1105,8 @@ int main(int argc, char** argv)
     //read full_path.txt file and publish
     // Publisher
     ros::Publisher full_path_pub = nh.advertise<nav_msgs::Path>("/full_path", 10, true);
+    //publish odom_state
+    ros::Publisher pubOdomState = nh.advertise<fast_lio::OdomState>("/odom_state", 10);
 
     if (load_path)
     {
@@ -1161,6 +1243,14 @@ int main(int argc, char** argv)
 
             double t_update_end = omp_get_wtime();
 
+            if (FailureDetection(Measures.lidar_beg_time)) {
+                //todo
+                //Reset();
+            };
+
+            //publish odom_state
+            publish_odom_state(pubOdomState);
+
             /******* Publish odometry *******/
             publish_odometry(pubOdomAftMapped);
 
@@ -1177,6 +1267,13 @@ int main(int argc, char** argv)
             if (scan_pub_en && map_pub_interval > 0 && frame_num % map_pub_interval == 0) {
                 publish_map(pubLaserCloudMap);
             }
+
+            q_last.x() = geoQuat.x;
+            q_last.y() = geoQuat.y;
+            q_last.z() = geoQuat.z;
+            q_last.w() = geoQuat.w;
+            position_last = V3D(state_point.pos(0), state_point.pos(1), state_point.pos(2));
+            last_timestamp = Measures.lidar_beg_time;
 
             frame_num ++;
             /*** Debug variables ***/

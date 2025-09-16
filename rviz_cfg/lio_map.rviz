@@ -5,7 +5,10 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Grid1
+        - /Grid1/Offset1
         - /mapping1
+        - /mapping1/currPoints1
         - /mapping1/currPoints1/Autocompute Value Bounds1
         - /Odometry1/Odometry1
         - /Odometry1/Odometry1/Shape1
@@ -53,7 +56,7 @@ Visualization Manager:
       Offset:
         X: 0
         Y: 0
-        Z: 0
+        Z: -1.100000023841858
       Plane: XY
       Plane Cell Count: 40
       Reference Frame: <Fixed Frame>
@@ -97,7 +100,7 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: true
-        - Alpha: 0.10000000149011612
+        - Alpha: 0.5
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
             Max Value: 15
@@ -109,7 +112,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 1000
-          Enabled: false
+          Enabled: true
           Invert Rainbow: true
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -124,7 +127,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
