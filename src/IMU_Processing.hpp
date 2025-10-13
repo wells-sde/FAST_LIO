@@ -28,7 +28,7 @@
 
 /// *************Preconfiguration
 
-#define MAX_INI_COUNT (20)
+#define MAX_INI_COUNT (50)
 
 const bool time_list(PointType &x, PointType &y) {return (x.curvature < y.curvature);};
 
@@ -429,6 +429,11 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
       // ROS_INFO("IMU Initial Done: Gravity: %.4f %.4f %.4f %.4f; state.bias_g: %.4f %.4f %.4f; acc covarience: %.8f %.8f %.8f; gry covarience: %.8f %.8f %.8f",\
       //          imu_state.grav[0], imu_state.grav[1], imu_state.grav[2], mean_acc.norm(), cov_bias_gyr[0], cov_bias_gyr[1], cov_bias_gyr[2], cov_acc[0], cov_acc[1], cov_acc[2], cov_gyr[0], cov_gyr[1], cov_gyr[2]);
       fout_imu.open(DEBUG_FILE_DIR +"imu.txt",ios::out);
+    } else if (init_iter_num >= MAX_INI_COUNT)
+    {
+      ROS_WARN("Retry IMU initializing, please keep robot static for more than 0.5s!");
+      b_first_frame_ = true;
+      init_iter_num = 1;
     }
 
     return;
