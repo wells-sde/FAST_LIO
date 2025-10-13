@@ -30,9 +30,9 @@ MAX_ITERATION = 30
 INITIAL_MAX_ITERATION = 50
 
 need_global_loc=True
-first_success_pose = None
+last_success_pose = None
 first_success_time = None
-
+moved_distance = 0.0
 last_t_map_to_odom = None
 
 
@@ -151,10 +151,7 @@ def crop_global_map_in_FOV(global_map, pose_estimation, cur_odom):
 
 def global_localization(pose_estimation):
     global global_map, cur_scan, cur_odom, T_map_to_odom, last_timestamp, initialized
-    
-    # 用icp配准
-    # print(global_map, cur_scan, T_map_to_odom)
-    # rospy.loginfo('Global localization by scan-to-map matching......')
+    global need_global_loc,first_success_time, last_success_pose, last_t_map_to_odom, moved_distance
 
     last_timestamp = cur_odom.header.stamp.to_sec()
     # TODO 这里注意线程安全
@@ -186,7 +183,7 @@ def global_localization(pose_estimation):
         transformation, fitness, rmse = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
                                                     max_distance=1.0, scale=1, max_iter=max_iteration)
     toc = time.time()
-    rospy.loginfo('Cost of Time of Global Register: {}s'.format(toc - tic))
+    rospy.logdebug('Cost of Time of Global Register: {}s'.format(toc - tic))
 
     # 当全局定位成功时才更新map2odom
     if fitness > LOCALIZATION_TH:
@@ -207,12 +204,10 @@ def global_localization(pose_estimation):
         rospy.loginfo('fitness score:{}, inlier rmse: {}'.format(fitness, rmse))
 
         if initialized is False:
-            global first_success_pose, first_success_time,last_t_map_to_odom
-            first_success_pose = cur_odom.pose.pose.position
+            last_success_pose = cur_odom.pose.pose.position
             first_success_time = cur_odom.header.stamp.to_sec()
             last_t_map_to_odom = copy.copy(T_map_to_odom)
         else:
-            global need_global_loc
             # 如果已经初始化成功了, 但是map_to_odom变化很大，说明全局定位偏了
             # 计算T_map_to_odom和last_t_map_to_odom的差异   
             # delta_trans = np.linalg.norm(T_map_to_odom[:3, 3] - last_t_map_to_odom[:3, 3])
@@ -235,12 +230,16 @@ def global_localization(pose_estimation):
             # 已经初始化成功后 需要满足一定条件才认为收敛, 停止全局定位
             enough_time = cur_odom.header.stamp.to_sec() - first_success_time > 5.0/FREQ_LOCALIZATION
             cur_pos = np.array([cur_odom.pose.pose.position.x, cur_odom.pose.pose.position.y, cur_odom.pose.pose.position.z])
-            first_pos = np.array([first_success_pose.x, first_success_pose.y, first_success_pose.z])
-            moved_distance = np.linalg.norm(cur_pos - first_pos) > 3.0
+            last_pos = np.array([last_success_pose.x, last_success_pose.y, last_success_pose.z])
+            moved_distance += np.linalg.norm(cur_pos - last_pos)
+            enough_moved = moved_distance > 3.0
             converged = rmse < MAP_VOXEL_SIZE * 1.0 and fitness > 0.99
-            if enough_time and moved_distance and converged:
+            if enough_time and enough_moved and converged:
                 need_global_loc = False
                 rospy.logwarn('Global localization converged!!!!!!Exit global localization thread.')
+
+            last_success_pose = cur_odom.pose.pose.position
+            rospy.logdebug('moved_distance:{}'.format(moved_distance))
             
         return True
     else:
