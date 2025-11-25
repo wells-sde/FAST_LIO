@@ -5,10 +5,10 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Grid1
         - /Grid1/Offset1
         - /mapping1
         - /mapping1/currPoints1/Autocompute Value Bounds1
+        - /Odometry1
         - /Odometry1/Odometry1
         - /Odometry1/Odometry1/Shape1
         - /Odometry1/Odometry1/Covariance1/Position1
@@ -190,7 +190,7 @@ Visualization Manager:
             Shaft Length: 0.30000001192092896
             Shaft Radius: 0.05000000074505806
             Value: Axes
-          Topic: /lidar_pose
+          Topic: /legOdom
           Unreliable: false
           Value: true
       Enabled: true

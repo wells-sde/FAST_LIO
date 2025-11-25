@@ -27,3 +27,6 @@ sleep 3s
 
 # 启动Lidar
 gnome-terminal -t "Livox driver" --working-directory="$LIDAR_DRIVER_DIR"  -- bash -c  "source ./devel/setup.bash;roslaunch livox_ros_driver2 msg_MID360.launch;exec bash;"
+sleep 2s
+
+# gnome-terminal -t "load octomap" --working-directory="$LIO_WS_DIR"  -- bash -c  "source ./devel/setup.bash;roslaunch fast_lio load_octomap.launch;exec bash;"
