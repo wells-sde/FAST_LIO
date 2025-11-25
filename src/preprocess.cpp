@@ -77,7 +77,11 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
   case VELO16:
     velodyne_handler(msg);
     break;
-
+  
+  case RS128:
+    rs_handler(msg);
+    break;
+    
   case MARSIM:
     sim_handler(msg);
     break;
@@ -109,8 +113,10 @@ void Preprocess::avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
   }
   uint valid_num = 0;
   
+  //特征提取
   if (feature_enabled)
   {
+      // 按照line划分点云
     for(uint i=1; i<plsize; i++)
     {
       if((msg->points[i].line < N_SCANS) && ((msg->points[i].tag & 0x30) == 0x10 || (msg->points[i].tag & 0x30) == 0x00))
@@ -122,6 +128,7 @@ void Preprocess::avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
         pl_full[i].curvature = msg->points[i].offset_time / float(1000000); //use curvature as time of each laser points
 
         bool is_new = false;
+        //与前一点间距太小则忽略该点，间距太小不利于特征提取
         if((abs(pl_full[i].x - pl_full[i-1].x) > 1e-7) 
             || (abs(pl_full[i].y - pl_full[i-1].y) > 1e-7)
             || (abs(pl_full[i].z - pl_full[i-1].z) > 1e-7))
@@ -152,7 +159,7 @@ void Preprocess::avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
         types[i].dista = sqrt(vx * vx + vy * vy + vz * vz);
       }
       types[plsize].range = sqrt(pl[plsize].x * pl[plsize].x + pl[plsize].y * pl[plsize].y);
-      give_feature(pl, types);
+      give_feature(pl, types); //通过点和每个点的属性，计算特征
       // pl_surf += pl;
     }
     time += omp_get_wtime() - t0;
@@ -484,15 +491,15 @@ void Preprocess::sim_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) {
 
 void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types)
 {
-  int plsize = pl.size();
-  int plsize2;
+  int plsize = pl.size(); // 输入扫描线的原始点数
+  int plsize2; // 用于估计特征的点数
   if(plsize == 0)
   {
     printf("something wrong\n");
     return;
   }
   uint head = 0;
-
+  //更新head为第一个大于blind范围的点索引
   while(types[head].range < blind)
   {
     head++;
@@ -509,6 +516,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   int last_state = 0;
   int plane_type;
 
+    //第一个大于blind范围的点索引开始遍历,判断平面特征
   for(uint i=head; i<plsize2; i++)
   {
     if(types[i].range < blind)
@@ -518,6 +526,10 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
     i2 = i;
 
+    //输出
+    // i_nex 局部最后最后一个点的索引
+    //curr_direct 归一化后的，局部范围最后一个点与第一个点的坐标差值，即向量（i_cur --> i_nex)
+    //return 1 正常退出， 0 中途break，curr_direct置零
     plane_type = plane_judge(pl, types, i, i_nex, curr_direct);
     
     if(plane_type == 1)
@@ -526,25 +538,25 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
       { 
         if(j!=i && j!=i_nex)
         {
-          types[j].ftype = Real_Plane;
+          types[j].ftype = Real_Plane; // 局部范围内部点定义为real平面点
         }
         else
         {
-          types[j].ftype = Poss_Plane;
+          types[j].ftype = Poss_Plane; // 局部范围边界点定义可能平面
         }
       }
       
       // if(last_state==1 && fabs(last_direct.sum())>0.5)
-      if(last_state==1 && last_direct.norm()>0.1)
+      if(last_state==1 && last_direct.norm()>0.1) // 根据上一状态（局部是平面）和长度（向量模长），决定起始点的类型
       {
         double mod = last_direct.transpose() * curr_direct;
-        if(mod>-0.707 && mod<0.707)
+        if(mod>-0.707 && mod<0.707) // 平面夹角30度
         {
-          types[i].ftype = Edge_Plane;
+          types[i].ftype = Edge_Plane; //平面交接的边
         }
         else
         {
-          types[i].ftype = Real_Plane;
+          types[i].ftype = Real_Plane;//平面
         }
       }
       
@@ -609,22 +621,23 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   }
 
   plsize2 = plsize > 3 ? plsize - 3 : 0;
+    // 从head+3向后遍历，判断非平面点是不是edge，以及判断edge的类型
   for(uint i=head+3; i<plsize2; i++)
   {
-    if(types[i].range<blind || types[i].ftype>=Real_Plane)
+    if(types[i].range<blind || types[i].ftype>=Real_Plane) // 距离太近或这已经判断为edge或者平面
     {
       continue;
     }
 
-    if(types[i-1].dista<1e-16 || types[i].dista<1e-16)
+    if(types[i-1].dista<1e-16 || types[i].dista<1e-16) //前两个点间距太小
     {
       continue;
     }
 
-    Eigen::Vector3d vec_a(pl[i].x, pl[i].y, pl[i].z);
-    Eigen::Vector3d vecs[2];
+    Eigen::Vector3d vec_a(pl[i].x, pl[i].y, pl[i].z); // sensor到当前点ray
+    Eigen::Vector3d vecs[2]; //从当前点指向前后相邻点的两个向量
 
-    for(int j=0; j<2; j++)
+    for(int j=0; j<2; j++) // 计算当前点与前一点、后一点的向量，判断当前点前后两个方向的edge属性
     {
       int m = -1;
       if(j == 1)
@@ -634,32 +647,33 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
       if(types[i+m].range < blind)
       {
-        if(types[i].range > inf_bound)
+        if(types[i].range > inf_bound) // 根据当前点平面距离，判断edge jump属性
         {
-          types[i].edj[j] = Nr_inf;
+          types[i].edj[j] = Nr_inf; //靠近远端
         }
         else
         {
-          types[i].edj[j] = Nr_blind;
+          types[i].edj[j] = Nr_blind; // 靠近近端
         }
         continue;
       }
 
-      vecs[j] = Eigen::Vector3d(pl[i+m].x, pl[i+m].y, pl[i+m].z);
-      vecs[j] = vecs[j] - vec_a;
+      vecs[j] = Eigen::Vector3d(pl[i+m].x, pl[i+m].y, pl[i+m].z); // sensor指向 当前点的前一点或后一点的向量
+      vecs[j] = vecs[j] - vec_a; // 当前点指向前一点或后一点的向量
       
-      types[i].angle[j] = vec_a.dot(vecs[j]) / vec_a.norm() / vecs[j].norm();
-      if(types[i].angle[j] < jump_up_limit)
+      types[i].angle[j] = vec_a.dot(vecs[j]) / vec_a.norm() / vecs[j].norm(); // cos(当前点指向前一点或后一点的向量, ray)
+      if(types[i].angle[j] < jump_up_limit) //jump_up_limit 默认cos170度
       {
-        types[i].edj[j] = Nr_180;
+        types[i].edj[j] = Nr_180; //ray 与 当前点指向端点外一点的向量 夹角接近180度
       }
-      else if(types[i].angle[j] > jump_down_limit)
+      else if(types[i].angle[j] > jump_down_limit) //jump_down_limit 默认8度
       {
-        types[i].edj[j] = Nr_zero;
+        types[i].edj[j] = Nr_zero;//ray 与 当前点指向端点外一点的向量 夹角接近0度
       }
     }
 
-    types[i].intersect = vecs[Prev].dot(vecs[Next]) / vecs[Prev].norm() / vecs[Next].norm();
+    types[i].intersect = vecs[Prev].dot(vecs[Next]) / vecs[Prev].norm() / vecs[Next].norm(); // 当前点与相邻两点的夹角cos值
+    //根据 前端点edge jump类型，后端点edge jump类型，与后一点间距，与前一点间距的4倍，判断edge的类型
     if(types[i].edj[Prev]==Nr_nor && types[i].edj[Next]==Nr_zero && types[i].dista>0.0225 && types[i].dista>4*types[i-1].dista)
     {
       if(types[i].intersect > cos160)
@@ -705,8 +719,8 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   }
 
   plsize2 = plsize-1;
-  double ratio;
-  for(uint i=head+1; i<plsize2; i++)
+  double ratio;//点的前后间距比，大：小
+  for(uint i=head+1; i<plsize2; i++)//对为分类点，判断特征类型
   {
     if(types[i].range<blind || types[i-1].range<blind || types[i+1].range<blind)
     {
@@ -729,7 +743,9 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
         ratio = types[i].dista / types[i-1].dista;
       }
 
-      if(types[i].intersect<smallp_intersect && ratio < smallp_ratio)
+      //smallp_intersect：默认172.5度余弦值
+      //smallp_intersect：默认1.2
+      if(types[i].intersect<smallp_intersect && ratio < smallp_ratio)//前后夹角大、间距接近，认为是真平面
       {
         if(types[i-1].ftype == Nor)
         {
@@ -754,7 +770,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
         last_surface = j;
       }
     
-      if(j == uint(last_surface+point_filter_num-1))
+      if(j == uint(last_surface+point_filter_num-1))//按索引间距取平面点索引
       {
         PointType ap;
         ap.x = pl[j].x;
@@ -771,10 +787,12 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     {
       if(types[j].ftype==Edge_Jump || types[j].ftype==Edge_Plane)
       {
-        pl_corn.push_back(pl[j]);
+        pl_corn.push_back(pl[j]);//记录edge特征
       }
       if(last_surface != -1)
       {
+          //edge特征和上一个surface特征之间取所有点均值，作为面特征
+          //todo 检查超限
         PointType ap;
         for(uint k=last_surface; k<j; k++)
         {
@@ -805,6 +823,7 @@ void Preprocess::pub_func(PointCloudXYZI &pl, const ros::Time &ct)
   output.header.stamp = ct;
 }
 
+// （line点云，点属性， 当前点索引，当前点索引，当前方向）
 int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct)
 {
   double group_dis = disA*types[i_cur].range + disB;
@@ -815,6 +834,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
   vector<double> disarr;
   disarr.reserve(20);
 
+  //group_size(计算特征需要的点数，默认8）， 索引范围内遍历
   for(i_nex=i_cur; i_nex<i_cur+group_size; i_nex++)
   {
     if(types[i_nex].range < blind)
@@ -846,20 +866,21 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     i_nex++;
   }
 
-  double leng_wid = 0;
+  double leng_wid = 0; // 记录局部范围内，叉乘的最大模长，即局部范围内最大平行四边形面积
   double v1[3], v2[3];
-  for(uint j=i_cur+1; j<i_nex; j++)
+  for(uint j=i_cur+1; j<i_nex; j++) //局部范围内，从当前点向后遍历，i_nex为局部范围内索引最大值
   {
     if((j >= pl.size()) || (i_cur >= pl.size())) break;
+    //计算向量（i_cur --> j）
     v1[0] = pl[j].x - pl[i_cur].x;
     v1[1] = pl[j].y - pl[i_cur].y;
     v1[2] = pl[j].z - pl[i_cur].z;
-
+    // vx,vy,vz为局部范围最后一个点与第一个点的坐标差值，即向量（i_cur --> i_nex)，以下为叉乘
     v2[0] = v1[1]*vz - vy*v1[2];
     v2[1] = v1[2]*vx - v1[0]*vz;
     v2[2] = v1[0]*vy - vx*v1[1];
 
-    double lw = v2[0]*v2[0] + v2[1]*v2[1] + v2[2]*v2[2];
+    double lw = v2[0]*v2[0] + v2[1]*v2[1] + v2[2]*v2[2]; // 叉乘的模长，平行四边形面积
     if(lw > leng_wid)
     {
       leng_wid = lw;
@@ -867,14 +888,14 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
   }
 
 
-  if((two_dis*two_dis/leng_wid) < p2l_ratio)
+  if((two_dis*two_dis/leng_wid) < p2l_ratio) //?? 最大距离平方和的乘积与最大平行四边形面积比，判断比例，返回0
   {
     curr_direct.setZero();
     return 0;
   }
 
   uint disarrsize = disarr.size();
-  for(uint j=0; j<disarrsize-1; j++)
+  for(uint j=0; j<disarrsize-1; j++) // 排序，disarr按从大到小，leng_wid为最小的相邻点间隔距离
   {
     for(uint k=j+1; k<disarrsize; k++)
     {
@@ -906,7 +927,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
   }
   else
   {
-    double dismax_min = disarr[0] / disarr[disarrsize-2];
+    double dismax_min = disarr[0] / disarr[disarrsize-2]; //最大最小间距比
     if(dismax_min >= limit_maxmin)
     {
       curr_direct.setZero();
@@ -914,7 +935,7 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
     }
   }
   
-  curr_direct << vx, vy, vz;
+  curr_direct << vx, vy, vz;// vx,vy,vz为局部范围最后一个点与第一个点的坐标差值，即向量（i_cur --> i_nex)
   curr_direct.normalize();
   return 1;
 }
@@ -935,6 +956,7 @@ bool Preprocess::edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &type
       return false;
     }
   }
+  // d1,d2为向前或向后的相邻点间距，通过nor_dir控制方向
   double d1 = types[i+nor_dir-1].dista;
   double d2 = types[i+3*nor_dir-2].dista;
   double d;
@@ -956,4 +978,177 @@ bool Preprocess::edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &type
   }
   
   return true;
+}
+
+void Preprocess::rs_handler(const sensor_msgs::PointCloud2_<allocator<void>>::ConstPtr &msg) {
+    pl_surf.clear();
+    pl_corn.clear();
+    pl_full.clear();
+
+    pcl::PointCloud<rslidar_ros::Point> pl_orig;
+    pcl::fromROSMsg(*msg, pl_orig);
+    int plsize = pl_orig.points.size();
+    pl_surf.reserve(plsize);
+
+    /*** These variables only works when no point timestamps given ***/
+    double omega_l = 0.361 * SCAN_RATE;       // scan angular velocity
+    std::vector<bool> is_first(N_SCANS,true);
+    std::vector<double> yaw_fp(N_SCANS, 0.0);      // yaw of first scan point
+    std::vector<float> yaw_last(N_SCANS, 0.0);   // yaw of last scan point
+    std::vector<float> time_last(N_SCANS, 0.0);  // last offset time
+    /*****************************************************************/
+
+    if (pl_orig.points[plsize - 1].time > 0)//todo check pl_orig.points[plsize - 1].time
+    {
+        given_offset_time = true;
+    }
+    else
+    {
+        given_offset_time = false;
+        double yaw_first = atan2(pl_orig.points[0].y, pl_orig.points[0].x) * 57.29578; // 记录第一个点(index 0)的yaw， to degree
+        double yaw_end  = yaw_first;
+        int layer_first = pl_orig.points[0].ring; // 第一个点(index 0)的layer序号
+        for (uint i = plsize - 1; i > 0; i--) // 倒序遍历，找到与第一个点相同layer的最后一个点
+        {
+            if (pl_orig.points[i].ring == layer_first)
+            {
+                yaw_end = atan2(pl_orig.points[i].y, pl_orig.points[i].x) * 57.29578;// 与第一个点相同layer的最后一个点的yaw
+                break;
+            }
+        }
+    }
+
+    if(feature_enabled)
+    {
+        for (int i = 0; i < N_SCANS; i++)
+        {
+            pl_buff[i].clear();
+            pl_buff[i].reserve(plsize);
+        }
+
+        //计算时间、转换点云格式为PointType，正序遍历
+        for (int i = 0; i < plsize; i++)
+        {
+            PointType added_pt;
+            added_pt.normal_x = 0;
+            added_pt.normal_y = 0;
+            added_pt.normal_z = 0;
+            int layer  = pl_orig.points[i].ring;
+            if (layer >= N_SCANS) continue;
+            added_pt.x = pl_orig.points[i].x;
+            added_pt.y = pl_orig.points[i].y;
+            added_pt.z = pl_orig.points[i].z;
+            added_pt.intensity = pl_orig.points[i].intensity;
+            added_pt.curvature = pl_orig.points[i].time / 1000.0; // units: ms
+
+            if (!given_offset_time)
+            {
+                double yaw_angle = atan2(added_pt.y, added_pt.x) * 57.2957; // 但前点yaw, to degree
+                if (is_first[layer]) // 如果当前点是其对应layer的第一个点
+                {
+                    // printf("layer: %d; is first: %d", layer, is_first[layer]);
+                    yaw_fp[layer]=yaw_angle; // 记录为当前点对应layer的起始yaw
+                    is_first[layer]=false;
+                    added_pt.curvature = 0.0; //当前点curvature（时间）置零
+                    yaw_last[layer]=yaw_angle; // 暂时记录为当前点对应layer的结束yaw
+                    time_last[layer]=added_pt.curvature;
+                    continue;
+                }
+
+                if (yaw_angle <= yaw_fp[layer])
+                {
+                    added_pt.curvature = (yaw_fp[layer]-yaw_angle) / omega_l;
+                }
+                else
+                {
+                    added_pt.curvature = (yaw_fp[layer]-yaw_angle+360.0) / omega_l;
+                }
+
+                if (added_pt.curvature < time_last[layer])  added_pt.curvature+=360.0/omega_l;
+
+                yaw_last[layer] = yaw_angle; // 记录当前layer最后一个点的yaw
+                time_last[layer]=added_pt.curvature; //  记录当前layer最后一个点的时间
+            }
+
+            pl_buff[layer].points.push_back(added_pt);
+        }
+
+        for (int j = 0; j < N_SCANS; j++)
+        {
+            PointCloudXYZI &pl = pl_buff[j]; // points_line
+            int linesize = pl.size();
+            if (linesize < 2) continue;
+            vector<orgtype> &types = typess[j]; //用于记录当前扫描线上每个点的参数
+            types.clear();
+            types.resize(linesize);
+            linesize--;
+            for (uint i = 0; i < linesize; i++)
+            {
+                types[i].range = sqrt(pl[i].x * pl[i].x + pl[i].y * pl[i].y);
+                vx = pl[i].x - pl[i + 1].x;
+                vy = pl[i].y - pl[i + 1].y;
+                vz = pl[i].z - pl[i + 1].z;
+                types[i].dista = vx * vx + vy * vy + vz * vz;
+            }
+            types[linesize].range = sqrt(pl[linesize].x * pl[linesize].x + pl[linesize].y * pl[linesize].y);
+            give_feature(pl, types);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < plsize; i++)
+        {
+            PointType added_pt;
+            // cout<<"!!!!!!"<<i<<" "<<plsize<<endl;
+
+            added_pt.normal_x = 0;
+            added_pt.normal_y = 0;
+            added_pt.normal_z = 0;
+            added_pt.x = pl_orig.points[i].x;
+            added_pt.y = pl_orig.points[i].y;
+            added_pt.z = pl_orig.points[i].z;
+            added_pt.intensity = pl_orig.points[i].intensity;
+            added_pt.curvature = pl_orig.points[i].time / 1000.0;  // curvature unit: ms
+
+            if (!given_offset_time)
+            {
+                int layer = pl_orig.points[i].ring;
+                double yaw_angle = atan2(added_pt.y, added_pt.x) * 57.2957;
+
+                if (is_first[layer])
+                {
+                    // printf("layer: %d; is first: %d", layer, is_first[layer]);
+                    yaw_fp[layer]=yaw_angle;
+                    is_first[layer]=false;
+                    added_pt.curvature = 0.0;
+                    yaw_last[layer]=yaw_angle;
+                    time_last[layer]=added_pt.curvature;
+                    continue;
+                }
+
+                // compute offset time
+                if (yaw_angle <= yaw_fp[layer])
+                {
+                    added_pt.curvature = (yaw_fp[layer]-yaw_angle) / omega_l;
+                }
+                else
+                {
+                    added_pt.curvature = (yaw_fp[layer]-yaw_angle+360.0) / omega_l;
+                }
+
+                if (added_pt.curvature < time_last[layer])  added_pt.curvature+=360.0/omega_l;
+
+                yaw_last[layer] = yaw_angle;
+                time_last[layer]=added_pt.curvature;
+            }
+
+            if (i % point_filter_num == 0)
+            {
+                if(added_pt.x*added_pt.x+added_pt.y*added_pt.y+added_pt.z*added_pt.z > (blind * blind))
+                {
+                    pl_surf.points.push_back(added_pt);
+                }
+            }
+        }
+    }
 }

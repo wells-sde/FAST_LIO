@@ -1,0 +1,43 @@
+<launch>
+<!-- Launch file for Livox AVIA LiDAR -->
+
+	<arg name="rviz" default="true" />
+	<arg name="map_file" default="filterGlobalMap.pcd" />
+
+	<param name="use_sim_time" value="false"/>
+
+	<rosparam command="load" file="$(find fast_lio)/config/mid360_lc_G1.yaml" />
+
+	<param name="feature_extract_enable" type="bool" value="0"/>
+	<param name="point_filter_num" type="int" value="2"/>
+	<param name="max_iteration" type="int" value="3" />
+	<param name="filter_size_surf" type="double" value="0.1" />
+	<param name="filter_size_map" type="double" value="0.1" />
+	<param name="cube_side_length" type="double" value="1000" />
+	<param name="runtime_pos_log_enable" type="bool" value="0" />
+	<!-- <param name="pcd_save_enable" type="bool" value="0" /> -->
+	<param name="save_dir" type="string" value="$(find fast_lio)" />
+
+	<param name="log_level" type="string" value="info"/> <!-- 可选: debug, info, warn, error -->
+	<env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time:%Y-%m-%d %H:%M:%S.%f}] [${node}]: ${message}"/>
+    <node pkg="fast_lio" type="fastlio_mapping" name="laserMapping" output="screen" />
+
+	<!-- loalization-->
+    <node pkg="fast_lio" type="global_localization.py" name="global_localization" output="screen" />
+
+	<!-- transform  fusion-->
+    <node pkg="fast_lio" type="transform_fusion.py" name="transform_fusion" output="screen">
+		<remap from="localization" to="/legOdom" /> 
+	</node>
+
+	<!-- glbal map-->
+    <node pkg="pcl_ros" type="pcd_to_pointcloud" name="map_publishe" output="screen"
+		  args="$(arg map_file) 5 _frame_id:=map cloud_pcd:=/cloud_map" />
+
+
+	<group if="$(arg rviz)">
+	<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz_loc" args="-d $(find fast_lio)/rviz_cfg/localization.rviz" />
+	<!-- <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_lio)/rviz_cfg/lio_loc.rviz" />  -->
+	</group>
+
+</launch>
