@@ -23,7 +23,7 @@ echo "livox lidar driver dir: $LIDAR_DRIVER_DIR"
 
 # 启动SLAM
 gnome-terminal -t "LIO" --working-directory="$LIO_WS_DIR"  -- bash -c  "source ./devel/setup.bash;roslaunch fast_lio localization_go2w.launch map_file:=$MAPFILE_PATH;exec bash;"
-sleep 3s
+sleep 2s
 
 # 启动Lidar
 gnome-terminal -t "Livox driver" --working-directory="$LIDAR_DRIVER_DIR"  -- bash -c  "source ./devel/setup.bash;roslaunch livox_ros_driver2 msg_MID360.launch;exec bash;"
