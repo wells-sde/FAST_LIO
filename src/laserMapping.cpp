@@ -117,7 +117,7 @@
 #define MAXN (720000)
 #define PUBFRAME_PERIOD (20)
 
-enum Odom_State{NOT_INITIALIZED, ODOM_OK, ODOM_BAD, ODOM_FAILED= 99};
+enum Odom_State{NOT_INITIALIZED, ODOM_OK, ODOM_BAD, ODOM_DELAY, ODOM_FAILED= 99};
 Odom_State odom_state = NOT_INITIALIZED;
 
 /*** Time Log Variables ***/
@@ -1306,7 +1306,7 @@ void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
     }
 
     // skip first frame, check lidar timestamp
-    if (last_timestamp_lidar > 1e-3 && msg->header.stamp.toSec() < last_timestamp_lidar + 0.009)
+    if (last_timestamp_lidar > 1e-3 && msg->header.stamp.toSec() < last_timestamp_lidar + 0.01)  // >100hz
     {
         ROS_WARN("lidar FREQUENCY TOO HIGH! skip this fame! last time: %lf, current time: %lf", last_timestamp_lidar, msg->header.stamp.toSec());
         mtx_buffer.unlock();
@@ -1314,18 +1314,18 @@ void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
         return;
     }
 
-    if (last_timestamp_lidar > 1e-3 && msg->header.stamp.toSec() > last_timestamp_lidar + 0.2)
+    if (last_timestamp_lidar > 1e-3 && msg->header.stamp.toSec() > last_timestamp_lidar + 0.2)  // <5hz
     {
         ROS_WARN("lidar FREQUENCY TOO LOW! last time: %lf, current time: %lf", last_timestamp_lidar, msg->header.stamp.toSec());
     }
     last_timestamp_lidar = msg->header.stamp.toSec();
     
-    if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 10.0 && !imu_buffer.empty() && !lidar_buffer.empty() )
+    if (!time_sync_en && abs(last_timestamp_imu - last_timestamp_lidar) > 1.0 && !imu_buffer.empty() && !lidar_buffer.empty() )
     {
         printf("IMU and LiDAR not Synced, IMU time: %lf, lidar header time: %lf \n",last_timestamp_imu, last_timestamp_lidar);
     }
 
-    if (time_sync_en && !timediff_set_flg && abs(last_timestamp_lidar - last_timestamp_imu) > 1 && !imu_buffer.empty())
+    if (time_sync_en && !timediff_set_flg && abs(last_timestamp_lidar - last_timestamp_imu) > 1.0 && !imu_buffer.empty())
     {
         timediff_set_flg = true;
         timediff_lidar_wrt_imu = last_timestamp_lidar + 0.1 - last_timestamp_imu;
@@ -2331,8 +2331,12 @@ bool FailureDetection(const double &curtime)
     else
     {
         failure_count = 0;
+        if (time_buffer.size() > 0 && time_buffer.back() - curtime > 1.5)  // delay 1.5s
+        {
+            odom_state = ODOM_DELAY;
+        } else {
         odom_state = ODOM_OK;
-        return false;
+        }
     }
 
     if (failure_count >= 10)
