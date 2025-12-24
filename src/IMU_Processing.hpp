@@ -52,6 +52,7 @@ class ImuProcess
   void set_acc_bias_cov(const V3D &b_a);
   Eigen::Matrix<double, 12, 12> Q;
   void Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr pcl_un_);
+  void set_mount_orientation(const M3D &rot, const V3D &transl = Zero3d);
 
   ofstream fout_imu;
   V3D cov_acc;
@@ -65,6 +66,11 @@ class ImuProcess
   int lidar_type;
   M3D R_world_imu;
   V3D T_world_imu;
+  //lidar imu 安装朝向
+  bool estimate_lidar_orientation = true;
+  M3D R_body_imu;
+  V3D T_body_imu;
+
 
  private:
   bool IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, int &N);
@@ -105,6 +111,8 @@ ImuProcess::ImuProcess()
   Lidar_R_wrt_IMU = Eye3d;
   R_world_imu =  Eye3d;
   T_world_imu = Zero3d;
+  R_body_imu =  Eye3d;
+  T_body_imu = Zero3d;
   last_imu_.reset(new sensor_msgs::Imu());
 }
 
@@ -212,7 +220,11 @@ bool ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
   init_state.grav = S2(0.0, 0.0, -1.0*G_m_s2);
 
   //估计IMU初始方向
+  if (estimate_lidar_orientation) {
   init_state.rot = GetQFromAcc(mean_acc).toRotationMatrix();
+  } else {
+    init_state.rot = R_body_imu;
+  }
   //R_world_imu = GetQFromAcc(mean_acc).toRotationMatrix();
   R_world_imu = Eye3d;
   //state_inout.rot = Eye3d; // Exp(mean_acc.cross(V3D(0, 0, -1 / scale_gravity)));
@@ -451,6 +463,12 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
   // cout<<"[ IMU Process ]: Time: "<<t3 - t1<<endl;
 }
 
+inline void ImuProcess::set_mount_orientation(const M3D &rot, const V3D &transl)
+{
+  R_body_imu = rot;
+  T_body_imu = transl;
+}
+
 Eigen::Quaterniond ImuProcess::GetQFromAcc(const Eigen::Vector3d& acc) {
 	Eigen::Vector3d a = acc.normalized();
 	double psi = 0;
@@ -464,7 +482,7 @@ Eigen::Quaterniond ImuProcess::GetQFromAcc(const Eigen::Vector3d& acc) {
 	return qws;
 }
 
-inline bool ImuProcess::CheckImuStatic(const V3D &mean_acc, const V3D &mean_gyr, const V3D &cov_acc, const V3D &cov_gyr)
+bool ImuProcess::CheckImuStatic(const V3D &mean_acc, const V3D &mean_gyr, const V3D &cov_acc, const V3D &cov_gyr)
 {
   double lowAccThreshold = 0.8;  //0.35
   double lowGyroThreshold = 0.3;  //0.08

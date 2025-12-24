@@ -31,6 +31,14 @@ mapping:
     extrinsic_R: [ 1, 0, 0,
                    0, 1, 0,
                    0, 0, 1]
+
+    #IMU mount orientation
+    mount_orient_est: true       # true: estimate imu mount orientation, false: using mount_R
+    mount_R: [ 1, 0, 0,
+               0, -1, 0,
+               0, 0, -1]
+    mount_T: [ 0.0, 0.0, 0.0]
+
     max_vel: 1.5                # maximum velocity of the robot, unit: m/s
     max_rotate_rate: 3.14       # maximum rotation rate of the robot, unit: rad/s
 

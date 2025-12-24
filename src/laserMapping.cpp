@@ -193,6 +193,11 @@ double last_timestamp = -1.0;
 V3D Lidar_T_wrt_IMU(Zero3d); // T lidar to imu (imu = r * lidar + t)
 M3D Lidar_R_wrt_IMU(Eye3d);  // R lidar to imu (imu = r * lidar + t)
 
+bool est_mount_orientation = true;
+vector<double> mount_T(3, 0.0);
+vector<double> mount_R(9, 0.0);
+vector<double> T_fb(3, 0.0);
+
 /*** EKF inputs and output ***/
 MeasureGroup Measures;
 esekfom::esekf<state_ikfom, 12, input_ikfom> kf; // 状态，噪声维度，输入
@@ -2432,6 +2437,17 @@ int main(int argc, char** argv)
     nh.param<float>("preprocess/mask/miny", p_pre->mask_miny, -0.1f);
     nh.param<float>("preprocess/mask/maxz", p_pre->mask_maxz, 0.1f);
     nh.param<float>("preprocess/mask/minz", p_pre->mask_minz, -0.1f);
+
+    nh.param<vector<double>>("mapping/mount_T", mount_T, vector<double>());
+    nh.param<vector<double>>("mapping/mount_R", mount_R, vector<double>());  
+    nh.param<bool>("mapping/mount_orient_est", est_mount_orientation, true);
+    
+    Eigen::Matrix3d mount_R_mat;
+    mount_R_mat << mount_R[0], mount_R[1], mount_R[2],
+                   mount_R[3], mount_R[4], mount_R[5],
+                   mount_R[6], mount_R[7], mount_R[8];
+    p_imu->set_mount_orientation(mount_R_mat, Eigen::Vector3d(mount_T[0], mount_T[1], mount_T[2]));
+    p_imu->estimate_lidar_orientation = est_mount_orientation;
 
     SAVE_DIR += "/";
     DEBUG_FILE_DIR = SAVE_DIR + "Log/";
