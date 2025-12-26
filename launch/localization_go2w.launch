@@ -23,7 +23,10 @@
     <node pkg="fast_lio" type="fastlio_mapping" name="laserMapping" output="screen" />
 
 	<!-- loalization-->
-    <node pkg="fast_lio" type="global_localization.py" name="global_localization" output="screen" />
+    <node pkg="fast_lio" type="global_localization.py" name="global_localization" output="screen">
+	    <!-- 私有参数（~ 开头），会解析为 /<node_name>/param 或者 <node_namespace>/<node_name>/param -->
+	    <param name="~freq_global_loc"  value="1.0" />
+	</node>
 
 	<!-- transform  fusion-->
     <node pkg="fast_lio" type="transform_fusion.py" name="transform_fusion" output="screen">

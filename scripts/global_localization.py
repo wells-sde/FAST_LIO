@@ -104,8 +104,11 @@ def publish_point_cloud(publisher, header, pc):
 
 def crop_global_map_in_FOV(global_map, pose_estimation, cur_odom):
     # 当前scan原点的位姿
+    # pose_estimation是T_map_to_odom,即机器人起始位置在map系下的位姿
     T_odom_to_base_link = pose_to_mat(cur_odom)
     T_map_to_base_link = np.matmul(pose_estimation, T_odom_to_base_link)
+    # # pose_estimation 为当前机器人位姿在map系下的估计
+    # T_map_to_base_link = pose_estimation
     T_base_link_to_map = inverse_se3(T_map_to_base_link)
 
     # 把地图转换到lidar系下
@@ -314,11 +317,15 @@ def thread_localization():
 
 
 if __name__ == '__main__':
-    MAP_VOXEL_SIZE = 0.1
-    SCAN_VOXEL_SIZE = 0.1
+    # Read parameters from launch (try private then global namespace), with defaults
+    MAP_VOXEL_SIZE = float(rospy.get_param('~filter_size_map', rospy.get_param('filter_size_map', 0.2)))
+    SCAN_VOXEL_SIZE = float(rospy.get_param('~filter_size_surf', rospy.get_param('filter_size_surf', 0.2)))
 
-    # Global localization frequency (HZ)
-    FREQ_LOCALIZATION = 1.0
+    # Global localization frequency (Hz)
+    FREQ_LOCALIZATION = float(rospy.get_param('~freq_global_loc', rospy.get_param('freq_global_loc', 1.0)))
+
+    rospy.loginfo('MAP_VOXEL_SIZE: {}, SCAN_VOXEL_SIZE: {}, FREQ_LOCALIZATION: {}'.format(
+        MAP_VOXEL_SIZE, SCAN_VOXEL_SIZE, FREQ_LOCALIZATION))
 
     # The threshold of global localization,
     # only those scan2map-matching with higher fitness than LOCALIZATION_TH will be taken
@@ -328,7 +335,7 @@ if __name__ == '__main__':
     FOV = 2*math.pi
 
     # The farthest distance(meters) within FOV
-    FOV_FAR = 100
+    FOV_FAR = 70
     print('FOV is set to {} rad, max distance is set to {} m'.format(FOV, FOV_FAR))
 
     initial_pose = None
@@ -337,7 +344,7 @@ if __name__ == '__main__':
     rospy.loginfo('Global Localization Node Inited...')
 
     # publisher
-    pub_pc_in_map = rospy.Publisher('/cur_scan_in_map', PointCloud2, queue_size=1)
+    # pub_pc_in_map = rospy.Publisher('/cur_scan_in_map', PointCloud2, queue_size=1)
     pub_submap = rospy.Publisher('/submap', PointCloud2, queue_size=1)
     pub_map_to_odom = rospy.Publisher('/map_to_odom', Odometry, queue_size=1)
 
