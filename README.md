@@ -81,7 +81,7 @@ rviz -d lio_map.rviz
 
 `./lio_loc.sh  path_to_filterGlobalMap.pcd`
 
-地图加载显示后，在rviz中使用2D Pose Estimate功能设置机器人相对于地图的初始位置。
+地图加载显示后，在rviz中使用2D Pose Estimate功能设置机器人起始位置在地图上的位姿。
 
 + 方式2： 通过命令行运行
 ```shell
@@ -91,7 +91,7 @@ roslaunch fast_lio localization_unitree_G1.launch map_file:=filterGlobalMap.pcd
 # LIDAR driver
 roslaunch livox_ros_driver2 msg_MID360.launch
 
-#提供机器人相对地图坐标原点的初始位置
+#提供机器人起始位置相对地图坐标系的初始位置
 # x y z yaw pitch roll
 rosrun fast_lio publish_initial_pose.py 0 0 0 0 0 0
 
