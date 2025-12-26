@@ -15,7 +15,9 @@ Clone the repository and catkin_make:
     source devel/setup.bash
 ```
 ##  3. Run
-请在机器人静止不动时启动li_slam，启动后slam会进行imu初始化，初始化完（几百ms）即可控制机器人运动。
+SLAM以ros topic方式从lidar驱动订阅lidar点云、imu数据，并以ros topic方式输出world坐标系下的点云（/cloud_registered）、位姿（/legOdom）、地图（/octomap_full，/octomap_binary，/map）等信息。坐标系定义请查看[坐标系定义](doc/坐标系.md)
+
+请在机器人静止不动时启动li_slam，启动后slam会进行imu初始化，初始化完（约0.5s）即可控制机器人运动。
 
 ### 3.1 运行lidar slam 建图模式
 
@@ -81,7 +83,7 @@ rviz -d lio_map.rviz
 
 `./lio_loc.sh  path_to_filterGlobalMap.pcd`
 
-地图加载显示后，在rviz中使用2D Pose Estimate功能设置机器人起始位置在地图上的位姿。
+地图加载显示后，在rviz中使用2D Pose Estimate功能设置**机器人起始位置在地图上的位姿**。
 
 + 方式2： 通过命令行运行
 ```shell
