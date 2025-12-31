@@ -1,7 +1,3 @@
-#ifndef PREPROCESS_H
-#define PREPROCESS_H
-
-
 #include <ros/ros.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -14,11 +10,14 @@ using namespace std;
 typedef pcl::PointXYZINormal PointType;
 typedef pcl::PointCloud<PointType> PointCloudXYZI;
 
-enum LID_TYPE{AVIA = 1, VELO16, OUST64, RS128, MARSIM}; //{1, 2, 3, 4}
-enum TIME_UNIT{SEC = 0, MS = 1, US = 2, NS = 3};
+enum LID_TYPE{AVIA = 1, VELO16, OUST64, RS128}; //{1, 2, 3, 4}
 enum Feature{Nor, Poss_Plane, Real_Plane, Edge_Jump, Edge_Plane, Wire, ZeroPoint};//未判断，可能平面，平面，跳跃边，平面交接边,细线
 enum Surround{Prev, Next};
 enum E_jump{Nr_nor, Nr_zero, Nr_180, Nr_inf, Nr_blind}; // 未判断，接近0度，接近180度，接近远端，接近近端
+
+// UAV前向向量，用于过滤点云
+const Eigen::Vector3d FRONT_VEC(-1, 0, 0); 
+double const FRONT_ANGLE_COS = cos(25.0 * M_PI/180.0);
 
 //用于记录每个点的距离、角度、特征种类等属性
 struct orgtype
@@ -57,24 +56,43 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
     (uint16_t, ring, ring)
 )
 
+// namespace rslidar_ros {
+//     struct EIGEN_ALIGN16 Point {
+//         PCL_ADD_POINT4D;
+//         float intensity;
+//         float time;
+//         uint16_t ring;
+//         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//     };
+// }  // namespace rslidar_ros
+// POINT_CLOUD_REGISTER_POINT_STRUCT(rslidar_ros::Point,
+//                                   (float, x, x)
+//                                   (float, y, y)
+//                                   (float, z, z)
+//                                   (float, intensity, curvature)
+//                                   (float, time, normal_x)
+//                                   (uint16_t, ring, ring)
+// )
 namespace rslidar_ros {
-    struct EIGEN_ALIGN16 Point {
-        PCL_ADD_POINT4D;
-        float intensity;
-        float time;
-        uint16_t ring;
-        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    };
-}  // namespace rslidar_ros
-POINT_CLOUD_REGISTER_POINT_STRUCT(rslidar_ros::Point,
-                                  (float, x, x)
-                                  (float, y, y)
-                                  (float, z, z)
-                                  (float, intensity, curvature)
-                                  (float, time, normal_x)
-    (uint16_t, ring, ring)
-)
+    struct Point {
+        PCL_ADD_POINT4D
 
+        PCL_ADD_INTENSITY;
+        uint16_t ring;
+        double time;
+
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    } EIGEN_ALIGN16;
+}
+POINT_CLOUD_REGISTER_POINT_STRUCT (
+        rslidar_ros::Point,
+        (float, x, x)
+        (float, y, y)
+        (float, z, z)
+        (float, intensity, intensity)
+        (uint16_t, ring, ring)
+        (double, time, timestamp)
+)
 namespace ouster_ros {
   struct EIGEN_ALIGN16 Point {
       PCL_ADD_POINT4D;
@@ -141,21 +159,18 @@ class Preprocess
   PointCloudXYZI pl_full, pl_corn, pl_surf; //储存全部点(特征提取或间隔采样后）、角点、面特征点
   PointCloudXYZI pl_buff[128]; //maximum 128 line lidar
   vector<orgtype> typess[128]; //maximum 128 line lidar
-  float time_unit_scale;
-  int lidar_type, point_filter_num, N_SCANS, SCAN_RATE, time_unit;
+  int lidar_type, point_filter_num, N_SCANS, SCAN_RATE;
   double blind; //xy平面距离，小于此阈值不计算特征
   bool feature_enabled, given_offset_time;
   ros::Publisher pub_full, pub_surf, pub_corn;
-
-  float mask_maxx, mask_minx, mask_maxy, mask_miny, mask_maxz, mask_minz;
+    
 
   private:
   void avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg);
   void oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
   void velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
   void rs_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void sim_handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
-  void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
+  void give_feature(PointCloudXYZI &pl, vector<orgtype> &types); // 当前扫描线点云， 扫描点属性
   void pub_func(PointCloudXYZI &pl, const ros::Time &ct);
   int  plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);
@@ -164,11 +179,10 @@ class Preprocess
   int group_size; //计算平面特征时需要的最少局部点数
   double disA, disB, inf_bound; //
   double limit_maxmid, limit_midmin, limit_maxmin;
-  double p2l_ratio;
+  double p2l_ratio;//??
   double jump_up_limit, jump_down_limit;
   double cos160;
   double edgea, edgeb;
   double smallp_intersect, smallp_ratio;
   double vx, vy, vz;
 };
-#endif
