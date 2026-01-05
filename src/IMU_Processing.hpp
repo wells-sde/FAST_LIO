@@ -221,10 +221,9 @@ bool ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
 
   //估计IMU初始方向
   if (estimate_lidar_orientation) {
-  init_state.rot = GetQFromAcc(mean_acc).toRotationMatrix();
-  } else {
+    R_body_imu = GetQFromAcc(mean_acc).toRotationMatrix();
+  } 
     init_state.rot = R_body_imu;
-  }
   //R_world_imu = GetQFromAcc(mean_acc).toRotationMatrix();
   R_world_imu = Eye3d;
   //state_inout.rot = Eye3d; // Exp(mean_acc.cross(V3D(0, 0, -1 / scale_gravity)));
@@ -441,7 +440,7 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
 
       //将imu_state.rot转换成欧拉角，并打印出来
       Eigen::Vector3d eulerAngle = imu_state.rot.matrix().eulerAngles(2,1,0); 
-      ROS_INFO("IMU Initial Done, initial rot(roll pitch yaw): %.4f %.4f %.4f; bg: %.4f %.4f %.4f", eulerAngle[2], eulerAngle[1], eulerAngle[0], imu_state.bg[0], imu_state.bg[1], imu_state.bg[2]);
+      ROS_INFO("IMU Initial Done, initial rot(roll pitch yaw): %.6f %.6f %.6f; bg: %.6f %.6f %.6f", eulerAngle[2], eulerAngle[1], eulerAngle[0], imu_state.bg[0], imu_state.bg[1], imu_state.bg[2]);
       // ROS_INFO("IMU Initial Done: Gravity: %.4f %.4f %.4f %.4f; state.bias_g: %.4f %.4f %.4f; acc covarience: %.8f %.8f %.8f; gry covarience: %.8f %.8f %.8f",\
       //          imu_state.grav[0], imu_state.grav[1], imu_state.grav[2], mean_acc.norm(), cov_bias_gyr[0], cov_bias_gyr[1], cov_bias_gyr[2], cov_acc[0], cov_acc[1], cov_acc[2], cov_gyr[0], cov_gyr[1], cov_gyr[2]);
       fout_imu.open(DEBUG_FILE_DIR +"imu.txt",ios::out);

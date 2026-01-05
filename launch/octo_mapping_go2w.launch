@@ -18,9 +18,9 @@
     <param name="height_map" value="true" />
  
     <!-- max/min height for occupancy map, should be in meters -->
-    <param name="pointcloud_max_z" value="2.0" />
-    <param name="pointcloud_min_z" value="-2.0" />  
-    <param name="occupancy_max_z" value="0.6"/>
+    <param name="pointcloud_max_z" value="0.5" />
+    <param name="pointcloud_min_z" value="-1.0" />  
+    <param name="occupancy_max_z" value="0.5"/>
     <param name="occupancy_min_z" value="-0.3" /> <!-- 利用高度过滤地面点云 -->
     <param name="filter_speckles" type="bool" value="true" />
     <!-- <param name="incremental_2D_projection" type="bool" value="true" /> -->
