@@ -58,21 +58,24 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
 )
 
 namespace rslidar_ros {
-    struct EIGEN_ALIGN16 Point {
-        PCL_ADD_POINT4D;
-        float intensity;
-        float time;
+    struct Point {
+        PCL_ADD_POINT4D
+
+        PCL_ADD_INTENSITY;
         uint16_t ring;
+        double time;
+
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    };
-}  // namespace rslidar_ros
-POINT_CLOUD_REGISTER_POINT_STRUCT(rslidar_ros::Point,
-                                  (float, x, x)
-                                  (float, y, y)
-                                  (float, z, z)
-                                  (float, intensity, curvature)
-                                  (float, time, normal_x)
-    (uint16_t, ring, ring)
+    } EIGEN_ALIGN16;
+}
+POINT_CLOUD_REGISTER_POINT_STRUCT (
+        rslidar_ros::Point,
+        (float, x, x)
+        (float, y, y)
+        (float, z, z)
+        (float, intensity, intensity)
+        (uint16_t, ring, ring)
+        (double, time, timestamp)
 )
 
 namespace ouster_ros {
@@ -146,7 +149,7 @@ class Preprocess
   double blind; //xy平面距离，小于此阈值不计算特征
   bool feature_enabled, given_offset_time;
   ros::Publisher pub_full, pub_surf, pub_corn;
-
+  
   float mask_maxx, mask_minx, mask_maxy, mask_miny, mask_maxz, mask_minz;
 
   private:
