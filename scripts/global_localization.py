@@ -181,10 +181,10 @@ def global_localization(pose_estimation):
 
     if USE_ICP_PLANE_TO_PLANE:
         transformation, fitness, rmse = registration_gicp(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
-                                                    max_distance=1.0, max_iter=max_iteration)
+                                                    max_distance=3.0, max_iter=max_iteration)
     else:
         transformation, fitness, rmse = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation,
-                                                    max_distance=1.0, scale=1, max_iter=max_iteration)
+                                                    max_distance=3.0, scale=1, max_iter=max_iteration)
     toc = time.time()
     rospy.logdebug('Cost of Time of Global Register: {}s'.format(toc - tic))
 

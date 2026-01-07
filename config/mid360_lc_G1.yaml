@@ -73,9 +73,9 @@ numberOfCores: 4                              # number of cores for mapping opti
 # mappingProcessInterval: 0.15                  # seconds, regulate mapping frequency
 
 # keyframe params
-surroundingkeyframeAddingDistThreshold: 2.0   # meters, regulate keyframe adding threshold
-surroundingkeyframeAddingAngleThreshold: 0.2  # radians, regulate keyframe adding threshold
-surroundingKeyframeDensity: 2.0               # meters, downsample surrounding keyframe poses   
+surroundingkeyframeAddingDistThreshold: 3.0   # meters, regulate keyframe adding threshold
+surroundingkeyframeAddingAngleThreshold: 0.3  # radians, regulate keyframe adding threshold
+surroundingKeyframeDensity: 3.0               # meters, downsample surrounding keyframe poses   
 surroundingKeyframeSearchRadius: 50.0         # meters, within n meters scan-to-map optimization (when loop closure disabled)
 
 # Loop closure
