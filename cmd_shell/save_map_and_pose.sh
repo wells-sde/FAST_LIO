@@ -21,11 +21,14 @@ source "$ROS_WORKSPACE_DIR/devel/setup.bash"
 
 # Run the octomap_saver command with the provided file path
 rosrun octomap_server octomap_saver -f "$MAPFILE_PATH"
-sleep 3s
+sleep 1s
+
+# rosrun map_server map_saver -f mymap
+# sleep 1s
 
 # save pose to file
 rosservice call /save_pose "destination: '$OUTPUT_DIR'" 
-sleep 2s
+sleep 1s
 
 # save global cloud map to file
 rosservice call /save_map "{'resolution': 0.1, 'destination': '$OUTPUT_DIR'}"

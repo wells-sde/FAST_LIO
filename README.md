@@ -1,5 +1,5 @@
 ## 1. Prerequisites
-ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server), [GTSAM>4.0.0](https://gtsam.org/get_started/),  [GeographicLib](https://github.com/geographiclib/geographiclib/tree/release), [Open3D(python)](https://www.open3d.org/docs/release/getting_started.html), ros_numpy(python)
+ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server), [GTSAM>4.0.0](https://gtsam.org/get_started/),  [GeographicLib](https://github.com/geographiclib/geographiclib/tree/release), [Open3D(python)](https://www.open3d.org/docs/release/getting_started.html), ros_numpy(python), ros-noetic-navigation(optional)
 
 ## 2. Build
 Clone the repository and catkin_make:
@@ -53,6 +53,8 @@ SLAM以ros topic方式从lidar驱动订阅lidar点云、imu数据，并以ros to
 rosrun octomap_server octomap_saver -f mapfile.ot
 
 #保存2D栅格地图
+#需要安装 ros-noetic-navigation 包
+#sudo apt install ros-noetic-navigation
 rosrun map_server map_saver -f mymap
 
 #保存3D点云地图到给定的目录
