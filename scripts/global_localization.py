@@ -237,6 +237,8 @@ def global_localization(pose_estimation):
             moved_distance += np.linalg.norm(cur_pos - last_pos)
             enough_moved = moved_distance > 3.0
             converged = rmse < MAP_VOXEL_SIZE * 1.0 and fitness > 0.99
+            enough_moved = True  # 只要时间够了就行
+            rospy.logdebug('enough_time:{}, enough_moved:{}, converged:{}'.format(enough_time, enough_moved, converged))
             if enough_time and enough_moved and converged:
                 need_global_loc = False
                 rospy.logwarn('Global localization converged!!!!!!Exit global localization thread.')
