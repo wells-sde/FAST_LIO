@@ -83,7 +83,7 @@ rviz -d lio_map.rviz
 
 `./lio_loc.sh  path_to_filterGlobalMap.pcd`
 
-地图加载显示后，在rviz中使用2D Pose Estimate功能设置**机器人起始位置在地图上的位姿**。
+地图加载显示后，在rviz中使用2D Pose Estimate功能设置**机器人起始位置在地图上的位姿**。**建议在周围有丰富结构的位置启动定位**。
 
 + 方式2： 通过命令行运行
 ```shell
