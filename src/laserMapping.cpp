@@ -1750,21 +1750,37 @@ void set_posestamp(T & out)
 
 void publish_odometry(const ros::Publisher & pubOdomAftMapped)
 {
+    static geometry_msgs::PoseStamped last_pose;
+    static ros::Time last_stamp;
+
     odomAftMapped.header.frame_id = "world";
     odomAftMapped.child_frame_id = "body";
     odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);// ros::Time().fromSec(lidar_end_time);
     set_posestamp(odomAftMapped.pose);
-    pubOdomAftMapped.publish(odomAftMapped);
 
-    //store pose
-    if (path_save)
-    {
-        geometry_msgs::PoseStamped pose_stamp;
-        pose_stamp.header.stamp = odomAftMapped.header.stamp;
-        pose_stamp.header.frame_id = odomAftMapped.header.frame_id;
-        pose_stamp.pose = odomAftMapped.pose.pose;
-        traj_all.push_back(pose_stamp);
+    if (last_stamp.isValid()) {
+        double dt = (odomAftMapped.header.stamp - last_stamp).toSec();
+        if (dt > 1e-3) {
+            odomAftMapped.twist.twist.linear.x = (odomAftMapped.pose.pose.position.x - last_pose.pose.position.x) / dt;
+            odomAftMapped.twist.twist.linear.y = (odomAftMapped.pose.pose.position.y - last_pose.pose.position.y) / dt;
+            odomAftMapped.twist.twist.linear.z = (odomAftMapped.pose.pose.position.z - last_pose.pose.position.z) / dt;
+        
+            // compute angular velocity
+            Eigen::Quaterniond q1( last_pose.pose.orientation.w, last_pose.pose.orientation.x, \
+                                   last_pose.pose.orientation.y, last_pose.pose.orientation.z);
+            Eigen::Quaterniond q2( odomAftMapped.pose.pose.orientation.w, odomAftMapped.pose.pose.orientation.x, \
+                                   odomAftMapped.pose.pose.orientation.y, odomAftMapped.pose.pose.orientation.z);
+            Eigen::Quaterniond dq = q1.conjugate() * q2;
+            Eigen::AngleAxisd angle_axis(dq);
+            V3D angular_velocity = V3D(angle_axis.axis()) * angle_axis.angle() / dt;
+            //to ros twist angular velocity
+            odomAftMapped.twist.twist.angular.x = angular_velocity(0);
+            odomAftMapped.twist.twist.angular.y = angular_velocity(1);
+            odomAftMapped.twist.twist.angular.z = angular_velocity(2);
+        }
     }
+       
+    pubOdomAftMapped.publish(odomAftMapped);
 
     //convert covariance matrix to world frame
     //todo
@@ -1792,6 +1808,19 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
     q.setZ(odomAftMapped.pose.pose.orientation.z);
     transform.setRotation( q );
     br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, "world", "body" ) );
+    
+    //store pose
+    if (path_save)
+    {
+        geometry_msgs::PoseStamped pose_stamp;
+        pose_stamp.header.stamp = odomAftMapped.header.stamp;
+        pose_stamp.header.frame_id = odomAftMapped.header.frame_id;
+        pose_stamp.pose = odomAftMapped.pose.pose;
+        traj_all.push_back(pose_stamp);
+    }
+
+    last_pose.pose = odomAftMapped.pose.pose;
+    last_stamp = odomAftMapped.header.stamp;
 }
 
 void publish_path(const ros::Publisher pubPath)
