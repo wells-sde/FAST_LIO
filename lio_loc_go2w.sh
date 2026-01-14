@@ -22,7 +22,7 @@ echo "lio workspace dir: $LIO_WS_DIR"
 echo "livox lidar driver dir: $LIDAR_DRIVER_DIR"
 
 # 启动SLAM
-gnome-terminal -t "LIO" --working-directory="$LIO_WS_DIR"  -- bash -c  "source ./devel/setup.bash;roslaunch fast_lio localization_unitree_G1.launch map_file:=$MAPFILE_PATH;exec bash;"
+gnome-terminal -t "LIO" --working-directory="$LIO_WS_DIR"  -- bash -c  "source ./devel/setup.bash;roslaunch fast_lio localization_go2w.launch map_file:=$MAPFILE_PATH;exec bash;"
 sleep 2s
 
 # 启动Lidar

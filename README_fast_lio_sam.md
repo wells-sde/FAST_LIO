@@ -86,8 +86,7 @@ rosbag  play  walking_dataset.bag
 输入如下指令到terminal中，地图文件将会保存在应文件夹中
 
 ```shell
-rosservice call /save_map "resolution: 0.0
-destination: ''" 
+rosservice call /save_map "{'resolution': 0.1, 'destination': ''}"
 success: True
 ```
 
@@ -96,8 +95,7 @@ success: True
 输入如下指令到terminal中，poes文件将会保存在相应文件夹中
 
 ```shell
-rosservice call /save_pose "resolution: 0.0
-destination: ''" 
+rosservice call /save_pose "destination: ''" 
 success: False
 ```
 
@@ -172,7 +170,7 @@ FAST-LIO  Map (no gnss prior factor)  Red   ;    FAST-LIO-SAM  (with gnss prior 
 
 输入如下指令到terminal中，poes文件将会保存在相应文件夹中
 
-```
+```shell
 rosservice call /save_pose "destination: ''" 
 success: False
 ```

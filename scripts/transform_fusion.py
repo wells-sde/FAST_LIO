@@ -46,7 +46,7 @@ def transform_fusion():
         last_timestamp = cur_odom.header.stamp.to_sec()
         br.sendTransform(tf.transformations.translation_from_matrix(T_map_to_odom),
                          tf.transformations.quaternion_from_matrix(T_map_to_odom),
-                         rospy.Time.now(),
+                         cur_odom.header.stamp,
                          'world', 'map')
         if cur_odom is not None:
             # 发布全局定位的odometry
@@ -86,8 +86,10 @@ if __name__ == '__main__':
 
     rospy.Subscriber('/lidar_pose', Odometry, cb_save_cur_odom, queue_size=1)
     rospy.Subscriber('/map_to_odom', Odometry, cb_save_map_to_odom, queue_size=1)
+    #订阅点云
 
     pub_localization = rospy.Publisher('/localization', Odometry, queue_size=1)
+    # 发布点云
 
     # 发布定位消息
     fusion_thread = threading.Thread(target=transform_fusion)

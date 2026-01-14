@@ -1,5 +1,5 @@
 ## 1. Prerequisites
-ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server), [GTSAM>4.0.0](https://gtsam.org/get_started/),  [GeographicLib](https://github.com/geographiclib/geographiclib/tree/release), [Open3D(python)](https://www.open3d.org/docs/release/getting_started.html), ros_numpy(python)
+ROS, PCL, Eigen, [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2), [octomap_server](http://wiki.ros.org/octomap_server), [GTSAM>4.0.0](https://gtsam.org/get_started/),  [GeographicLib](https://github.com/geographiclib/geographiclib/tree/release), [Open3D(python)(python)](https://www.open3d.org/docs/release/getting_started.html), ros_numpy(python), ros-noetic-navigation(optional)(python)
 
 ## 2. Build
 Clone the repository and catkin_make:
@@ -15,7 +15,9 @@ Clone the repository and catkin_make:
     source devel/setup.bash
 ```
 ##  3. Run
-请在机器人静止不动时启动li_slam，启动后slam会进行imu初始化，初始化完（几百ms）即可控制机器人运动。
+SLAM以ros topic方式从lidar驱动订阅lidar点云、imu数据，并以ros topic方式输出world坐标系下的点云（/cloud_registered）、位姿（/legOdom）、地图（/octomap_full，/octomap_binary，/map）等信息。坐标系定义请查看[坐标系定义](doc/坐标系.md)
+
+请在机器人静止不动时启动li_slam，启动后slam会进行imu初始化，初始化完（约0.5s）即可控制机器人运动。
 
 ### 3.1 运行lidar slam 建图模式
 
@@ -51,6 +53,8 @@ Clone the repository and catkin_make:
 rosrun octomap_server octomap_saver -f mapfile.ot
 
 #保存2D栅格地图
+#需要安装 ros-noetic-navigation 包
+#sudo apt install ros-noetic-navigation
 rosrun map_server map_saver -f mymap
 
 #保存3D点云地图到给定的目录
@@ -81,7 +85,7 @@ rviz -d lio_map.rviz
 
 `./lio_loc.sh  path_to_filterGlobalMap.pcd`
 
-地图加载显示后，在rviz中使用2D Pose Estimate功能设置机器人相对于地图的初始位置。
+地图加载显示后，在rviz中使用2D Pose Estimate功能设置**机器人起始位置在地图上的位姿**。**建议在周围有丰富结构的位置启动定位**。
 
 + 方式2： 通过命令行运行
 ```shell
@@ -91,7 +95,7 @@ roslaunch fast_lio localization_unitree_G1.launch map_file:=filterGlobalMap.pcd
 # LIDAR driver
 roslaunch livox_ros_driver2 msg_MID360.launch
 
-#提供机器人相对地图坐标原点的初始位置
+#提供机器人起始位置相对地图坐标系的初始位置
 # x y z yaw pitch roll
 rosrun fast_lio publish_initial_pose.py 0 0 0 0 0 0
 
